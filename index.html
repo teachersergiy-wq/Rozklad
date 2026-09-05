@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Розклад занять</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-title">
+      <h1>Розклад занять</h1>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="todayBtn" class="secondary-btn">Сьогодні</button>
+
+      <div class="view-switcher">
+        <button data-view="day" class="view-btn">День</button>
+        <button data-view="week" class="view-btn active">Тиждень</button>
+        <button data-view="month" class="view-btn">Місяць</button>
+      </div>
+
+      <button id="editModeBtn" class="secondary-btn">
+        Редагувати
+      </button>
+    </div>
+  </header>
+
+  <main class="calendar-page">
+
+    <div class="calendar-toolbar">
+      <button id="prevBtn" class="nav-btn">‹</button>
+
+      <div id="calendarTitle" class="calendar-title"></div>
+
+      <button id="nextBtn" class="nav-btn">›</button>
+    </div>
+
+    <div id="calendar" class="calendar"></div>
+
+  </main>
+
+</div>
+
+<!-- Модальне вікно заняття -->
+<div id="lessonModal" class="modal hidden">
+
+  <div class="modal-overlay"></div>
+
+  <div class="modal-content">
+
+    <div class="modal-header">
+      <h2 id="modalTitle">Заняття</h2>
+      <button id="closeModalBtn" class="modal-close">×</button>
+    </div>
+
+    <div class="form-group">
+      <label for="lessonDate">Дата</label>
+      <input id="lessonDate" type="text" readonly>
+    </div>
+
+    <div class="form-group">
+      <label for="lessonTime">Час</label>
+      <input
+        id="lessonTime"
+        type="time"
+        min="09:00"
+        max="21:00"
+        step="300"
+      >
+    </div>
+
+    <div class="form-group">
+      <label for="slotStatus">Статус</label>
+      <select id="slotStatus">
+        <option value="free">Вільно</option>
+        <option value="occupied">Зайнято</option>
+        <option value="unavailable">Недоступно</option>
+      </select>
+    </div>
+
+    <div id="studentGroup" class="form-group">
+      <label for="studentSelect">Учень</label>
+      <select id="studentSelect">
+        <option value="">Оберіть учня</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input id="paidCheckbox" type="checkbox">
+        <span>Оплачено</span>
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="lessonState">Стан заняття</label>
+      <select id="lessonState">
+        <option value="planned">Заплановане</option>
+        <option value="completed">Проведене</option>
+      </select>
+    </div>
+
+    <div id="studentColorGroup" class="form-group">
+      <label>Колір учня</label>
+
+      <div class="color-options">
+
+        <button
+          type="button"
+          class="color-option color-green"
+          data-color="green"
+          title="Світло-зелений">
+        </button>
+
+        <button
+          type="button"
+          class="color-option color-blue"
+          data-color="blue"
+          title="Світло-блакитний">
+        </button>
+
+        <button
+          type="button"
+          class="color-option color-orange"
+          data-color="orange"
+          title="Помаранчевий">
+        </button>
+
+        <button
+          type="button"
+          class="color-option color-gray"
+          data-color="gray"
+          title="Світло-сірий">
+        </button>
+
+        <button
+          type="button"
+          class="color-option color-yellow"
+          data-color="yellow"
+          title="Жовтий">
+        </button>
+
+        <button
+          type="button"
+          class="color-option color-red"
+          data-color="red"
+          title="Червоний">
+        </button>
+
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="deleteLessonBtn" class="danger-btn">
+        Очистити слот
+      </button>
+
+      <div class="modal-actions-right">
+        <button id="cancelModalBtn" class="secondary-btn">
+          Скасувати
+        </button>
+
+        <button id="saveLessonBtn" class="primary-btn">
+          Зберегти
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
