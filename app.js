@@ -11,12 +11,11 @@ const urlParams = new URLSearchParams(window.location.search);
 const scheduleToken = urlParams.get('key');
 let isStudentMode = urlParams.get('mode') === 'student';
 
-let isSettingsMode = false;
 let lessons = [];
 let students = [];
 let currentDate = new Date();
 
-// Робочі години для вибору учнями (можна редагувати список)
+// Робочі години для перегляду та запису учнями
 const WORK_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -40,7 +39,7 @@ function setupUIForMode() {
   }
 }
 
-// Завантаження даних із Supabase
+// Завантаження даних із Supabase / LocalStorage
 async function loadScheduleData() {
   if (supabaseClient && scheduleToken) {
     const { data, error } = await supabaseClient
@@ -51,7 +50,7 @@ async function loadScheduleData() {
 
     if (error) {
       console.error("Помилка завантаження Supabase:", error);
-      alert("Помилка доступу до Supabase (перевірте правила SELECT/RLS): " + error.message);
+      alert("Помилка доступу до Supabase: " + error.message);
       return;
     }
 
@@ -71,6 +70,7 @@ async function loadScheduleData() {
   students = JSON.parse(localStorage.getItem('students') || '[]');
 }
 
+// Збереження даних у Supabase / LocalStorage
 async function saveScheduleData() {
   const payload = { lessons, students };
 
@@ -146,7 +146,7 @@ function renderCalendar() {
   if (!container) return;
   container.innerHTML = '';
 
-  // Навігація по тижнях
+  // Навігаційні кнопки
   const navDiv = document.createElement('div');
   navDiv.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e2e8f0;';
   navDiv.innerHTML = `
@@ -169,7 +169,7 @@ function renderCalendar() {
     dayBox.appendChild(dayHeader);
 
     if (isStudentMode) {
-      // --- РЕЖИМ УЧНЯ: відображення вільних/зайнятих слотів ---
+      // --- РЕЖИМ УЧНЯ: вільні та зайняті слоти ---
       WORK_SLOTS.forEach(timeSlot => {
         const occupied = lessons.find(l => l.date === dateStr && l.time === timeSlot && l.status !== 'скасовано');
         const slotCard = document.createElement('div');
@@ -199,8 +199,7 @@ function renderCalendar() {
         dayBox.appendChild(emptyText);
       } else {
         dayLessons.forEach(lesson => {
-          const student = students.find(s => String(s.id) === String(lesson.student_id));
-          const card = createLessonCardElement(lesson, student);
+          const card = createLessonCardElement(lesson);
           dayBox.appendChild(card);
         });
       }
@@ -210,11 +209,20 @@ function renderCalendar() {
   });
 }
 
-function createLessonCardElement(lesson, student) {
+// Створення картки уроку
+function createLessonCardElement(lesson) {
   const card = document.createElement('div');
   card.className = `lesson-card status-${lesson.status || 'planned'}`;
-  if (student && student.color) {
-    card.style.borderLeft = `5px solid ${student.color}`;
+  
+  const targetStudentId = lesson.student_id || lesson.studentId;
+  const foundStudent = students.find(s => 
+    String(s.id) === String(targetStudentId) || s.name === targetStudentId
+  );
+
+  const studentName = foundStudent ? foundStudent.name : (lesson.student_name || lesson.student || 'Учень');
+
+  if (foundStudent && foundStudent.color) {
+    card.style.borderLeft = `5px solid ${foundStudent.color}`;
   }
 
   let statusBadge = '';
@@ -226,18 +234,18 @@ function createLessonCardElement(lesson, student) {
     statusBadge = '<span class="status-badge status-planned">⏳ Заплановано</span>';
   }
 
-  const isPaid = lesson.isPaid || lesson.is_paid;
-  const paidBadge = isPaid ? '<span class="paid-badge">💳 Оплачено</span>' : '';
+  const isPaid = lesson.isPaid || lesson.is_paid || lesson.paid;
+  const paidBadge = isPaid ? '<div style="color: #16a34a; font-weight: bold; font-size: 0.8rem; margin-top: 4px;">💳 Оплачено</div>' : '';
 
   card.innerHTML = `
-    <div class="lesson-header">
-      <span class="lesson-time">${escapeHtml(lesson.time)}</span>
+    <div class="lesson-header" style="display: flex; justify-content: space-between; align-items: center;">
+      <span class="lesson-time" style="font-weight: bold;">${escapeHtml(lesson.time)}</span>
       ${statusBadge}
     </div>
-    <div class="lesson-body">
-      <div class="student-name">${escapeHtml(student ? student.name : 'Учень')}</div>
-      ${lesson.topic ? `<div class="lesson-topic"><strong>Тема:</strong> ${escapeHtml(lesson.topic)}</div>` : ''}
-      ${lesson.homework ? `<div class="lesson-hw"><strong>ДЗ:</strong> ${escapeHtml(lesson.homework)}</div>` : ''}
+    <div class="lesson-body" style="margin: 6px 0;">
+      <div class="student-name" style="font-weight: 600; font-size: 0.95rem; color: #1e293b;">${escapeHtml(studentName)}</div>
+      ${lesson.topic ? `<div class="lesson-topic" style="font-size: 0.8rem; color: #475569;"><strong>Тема:</strong> ${escapeHtml(lesson.topic)}</div>` : ''}
+      ${lesson.homework ? `<div class="lesson-hw" style="font-size: 0.8rem; color: #475569;"><strong>ДЗ:</strong> ${escapeHtml(lesson.homework)}</div>` : ''}
     </div>
     <div class="lesson-footer">
       ${paidBadge}
@@ -248,22 +256,37 @@ function createLessonCardElement(lesson, student) {
   return card;
 }
 
+// Відкриття вікна створення уроку
 function openNewLessonModal() {
   document.getElementById('lessonId').value = '';
   document.getElementById('modalTitle').innerText = 'Додати урок';
   document.getElementById('lessonForm').reset();
+  
+  const paidCheckbox = document.getElementById('lessonPaid') || document.querySelector('input[type="checkbox"]');
+  if (paidCheckbox) paidCheckbox.checked = false;
+
   document.getElementById('lessonModal').style.display = 'block';
 }
 
+// Відкриття вікна редагування уроку
 function openEditLessonModal(lesson) {
   document.getElementById('modalTitle').innerText = 'Редагування уроку';
   document.getElementById('lessonId').value = lesson.id || '';
-  document.getElementById('lessonStudent').value = lesson.student_id || '';
+  
+  const studentId = lesson.student_id || lesson.studentId || '';
+  document.getElementById('lessonStudent').value = studentId;
+  
   document.getElementById('lessonDate').value = lesson.date || '';
   document.getElementById('lessonTime').value = lesson.time || '';
   document.getElementById('lessonStatus').value = lesson.status || 'заплановано';
   document.getElementById('lessonTopic').value = lesson.topic || '';
   document.getElementById('lessonHomework').value = lesson.homework || '';
+  
+  const paidCheckbox = document.getElementById('lessonPaid') || document.querySelector('input[type="checkbox"]');
+  if (paidCheckbox) {
+    paidCheckbox.checked = !!(lesson.isPaid || lesson.is_paid || lesson.paid);
+  }
+
   document.getElementById('lessonModal').style.display = 'block';
 }
 
@@ -271,18 +294,24 @@ function closeLessonModal() {
   document.getElementById('lessonModal').style.display = 'none';
 }
 
+// Збереження уроку
 async function handleSaveLesson(event) {
-  event.preventDefault();
+  if (event) event.preventDefault();
 
   const lessonId = document.getElementById('lessonId').value;
+  const paidCheckbox = document.getElementById('lessonPaid') || document.querySelector('input[type="checkbox"]');
+  const selectedStudentId = document.getElementById('lessonStudent').value;
+  
   const lessonData = {
     id: lessonId || (Date.now().toString() + '_' + Math.floor(Math.random() * 1000)),
-    student_id: document.getElementById('lessonStudent').value,
+    student_id: selectedStudentId,
+    studentId: selectedStudentId,
     date: document.getElementById('lessonDate').value,
     time: document.getElementById('lessonTime').value,
     status: document.getElementById('lessonStatus').value,
     topic: document.getElementById('lessonTopic').value.trim(),
-    homework: document.getElementById('lessonHomework').value.trim()
+    homework: document.getElementById('lessonHomework').value.trim(),
+    isPaid: paidCheckbox ? paidCheckbox.checked : false
   };
 
   if (lessonId) {
