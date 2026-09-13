@@ -1,6 +1,6 @@
-// Вкажіть ваші дані Supabase (якщо використовуєте хмару)
-const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+// 1. ВСТАВТЕ ВАШІ КЛЮЧІ SUPABASE ТУТ:
+const SUPABASE_URL = "https://vjjrwvraannccejyqcci.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_XYvCzMPGQjhT0AT2r2v3dw_zZIesIJB";
 
 let supabaseClient = null;
 if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
@@ -10,6 +10,7 @@ if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
 let isSettingsMode = false;
 let lessons = [];
 let students = [];
+let currentDate = new Date();
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -26,7 +27,7 @@ async function initApp() {
 async function loadStudents() {
   if (supabaseClient) {
     const { data, error } = await supabaseClient.from('students').select('*');
-    if (!error && data) {
+    if (!error && data && data.length > 0) {
       students = data;
       return;
     }
@@ -98,7 +99,24 @@ function togglePaymentDetails(isPaid) {
   }
 }
 
-// 1. Створення картки уроку (Без кнопки видалення)
+// Отримання дат поточного тижня (починаючи з понеділка)
+function getWeekDays(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  
+  const monday = new Date(date.setDate(diff));
+  const weekDays = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const nextDay = new Date(monday);
+    nextDay.setDate(monday.getDate() + i);
+    weekDays.push(nextDay.toISOString().split('T')[0]);
+  }
+  return weekDays;
+}
+
+// 1. Рендеринг картки уроку без хрестика
 function createLessonCardElement(lesson, student) {
   const card = document.createElement('div');
   card.className = `lesson-card status-${lesson.status || 'planned'}`;
@@ -136,48 +154,47 @@ function createLessonCardElement(lesson, student) {
   return card;
 }
 
-// 2. Рендеринг розкладу
+// 2. Рендеринг тижневої сітки розкладу
 function renderCalendar() {
   const container = document.getElementById('calendar');
   if (!container) return;
   container.innerHTML = '';
 
-  if (lessons.length === 0) {
-    container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #777; padding: 20px;">Немає запланованих уроків.</p>';
-    return;
-  }
+  const weekDays = getWeekDays(currentDate);
+  const daysNames = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота', 'Неділя'];
 
-  const grouped = {};
-  lessons.forEach(l => {
-    if (!grouped[l.date]) grouped[l.date] = [];
-    grouped[l.date].push(l);
-  });
-
-  const sortedDates = Object.keys(grouped).sort();
-
-  sortedDates.forEach(dateStr => {
+  weekDays.forEach((dateStr, index) => {
     const dayBox = document.createElement('div');
     dayBox.className = 'day-column';
-    dayBox.style.cssText = 'background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px;';
+    dayBox.style.cssText = 'background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; min-height: 200px;';
 
     const dayHeader = document.createElement('h3');
-    dayHeader.style.cssText = 'margin-bottom: 10px; font-size: 1rem; color: #475569; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;';
-    dayHeader.innerText = dateStr;
+    dayHeader.style.cssText = 'margin-bottom: 10px; font-size: 0.95rem; color: #475569; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; text-align: center;';
+    dayHeader.innerText = `${daysNames[index]}\n${dateStr}`;
     dayBox.appendChild(dayHeader);
 
-    grouped[dateStr].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    // Фільтрація уроків для конкретного дня
+    const dayLessons = lessons.filter(l => l.date === dateStr);
+    dayLessons.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
-    grouped[dateStr].forEach(lesson => {
-      const student = students.find(s => String(s.id) === String(lesson.student_id));
-      const card = createLessonCardElement(lesson, student);
-      dayBox.appendChild(card);
-    });
+    if (dayLessons.length === 0) {
+      const emptyText = document.createElement('div');
+      emptyText.style.cssText = 'font-size: 0.8rem; color: #aaa; text-align: center; margin-top: 20px;';
+      emptyText.innerText = 'Немає уроків';
+      dayBox.appendChild(emptyText);
+    } else {
+      dayLessons.forEach(lesson => {
+        const student = students.find(s => String(s.id) === String(lesson.student_id));
+        const card = createLessonCardElement(lesson, student);
+        dayBox.appendChild(card);
+      });
+    }
 
     container.appendChild(dayBox);
   });
 }
 
-// 3. Відкриття модального вікна для нового уроку
+// 3. Модальні вікна
 function openNewLessonModal() {
   document.getElementById('lessonId').value = '';
   document.getElementById('modalTitle').innerText = 'Додати урок';
@@ -198,7 +215,6 @@ function openNewLessonModal() {
   document.getElementById('lessonModal').style.display = 'block';
 }
 
-// 4. Відкриття модального вікна редагування
 function openEditLessonModal(lesson) {
   const isPast = isPastDate(lesson.date);
 
@@ -226,7 +242,6 @@ function openEditLessonModal(lesson) {
 
   togglePaymentDetails(isPaid);
 
-  // Додаємо кнопку видалення тільки в режимі налаштувань і для статусу "заплановано"
   const deleteContainer = document.getElementById('deleteLessonContainer');
   deleteContainer.innerHTML = '';
 
@@ -246,7 +261,7 @@ function closeLessonModal() {
   document.getElementById('lessonModal').style.display = 'none';
 }
 
-// 5. Збереження уроку
+// 4. Збереження уроку
 async function handleSaveLesson(event) {
   event.preventDefault();
 
@@ -295,7 +310,7 @@ async function handleSaveLesson(event) {
   renderCalendar();
 }
 
-// 6. Видалення уроку
+// 5. Видалення уроку
 async function handleDeleteLesson(lessonId) {
   if (!isSettingsMode) {
     alert("Видалення доступне лише в режимі налаштувань.");
