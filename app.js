@@ -2781,3 +2781,6 @@ document.addEventListener(
   "DOMContentLoaded",
   init
 );
+function renderMonth(calendar) {
+  calendar.innerHTML = "<div style='padding:30px;text-align:center'>Режим перегляду місяця знаходиться у розробці</div>";
+}
