@@ -1,12 +1,72 @@
-let isSettingsMode = false;
+// Вкажіть ваші дані Supabase (якщо використовуєте хмару)
+const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 
-// Зміна режиму налаштувань
+let supabaseClient = null;
+if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+let isSettingsMode = false;
+let lessons = [];
+let students = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+});
+
+async function initApp() {
+  await loadStudents();
+  await loadLessons();
+  populateStudentSelect();
+  renderCalendar();
+}
+
+// Завантаження учнів
+async function loadStudents() {
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from('students').select('*');
+    if (!error && data) {
+      students = data;
+      return;
+    }
+  }
+  students = JSON.parse(localStorage.getItem('students') || '[]');
+}
+
+// Завантаження уроків
+async function loadLessons() {
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from('lessons').select('*');
+    if (!error && data) {
+      lessons = data;
+      return;
+    }
+  }
+  lessons = JSON.parse(localStorage.getItem('lessons') || '[]');
+}
+
+function saveLessonsToLocal() {
+  localStorage.setItem('lessons', JSON.stringify(lessons));
+}
+
+function populateStudentSelect() {
+  const select = document.getElementById('lessonStudent');
+  if (!select) return;
+  select.innerHTML = '<option value="">Оберіть учня</option>';
+  students.forEach(st => {
+    const opt = document.createElement('option');
+    opt.value = st.id;
+    opt.textContent = st.name;
+    select.appendChild(opt);
+  });
+}
+
 function toggleSettingsMode(enabled) {
   isSettingsMode = enabled;
   renderCalendar();
 }
 
-// Перевірка, чи дата є минулою
 function isPastDate(dateStr) {
   if (!dateStr) return false;
   const today = new Date();
@@ -16,10 +76,9 @@ function isPastDate(dateStr) {
   return targetDate < today;
 }
 
-// Екранування символів HTML
 function escapeHtml(text) {
   if (!text) return '';
-  return text
+  return String(text)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -27,17 +86,19 @@ function escapeHtml(text) {
     .replace(/'/g, "&#039;");
 }
 
-// Відображення / приховування деталей оплати
 function togglePaymentDetails(isPaid) {
   const details = document.getElementById('paymentDetails');
-  details.style.display = isPaid ? 'block' : 'none';
+  if (details) {
+    details.style.display = isPaid ? 'block' : 'none';
+  }
 
-  if (isPaid && !document.getElementById('lessonPaymentDate').value) {
-    document.getElementById('lessonPaymentDate').value = new Date().toISOString().split('T')[0];
+  const dateInput = document.getElementById('lessonPaymentDate');
+  if (isPaid && dateInput && !dateInput.value) {
+    dateInput.value = new Date().toISOString().split('T')[0];
   }
 }
 
-// 1. Рендеринг картки уроку (Без хрестика видалення, з відміткою статусу)
+// 1. Створення картки уроку (Без кнопки видалення)
 function createLessonCardElement(lesson, student) {
   const card = document.createElement('div');
   card.className = `lesson-card status-${lesson.status || 'planned'}`;
@@ -45,7 +106,6 @@ function createLessonCardElement(lesson, student) {
     card.style.borderLeft = `5px solid ${student.color}`;
   }
 
-  // Значок статусу виконання
   let statusBadge = '';
   if (lesson.status === 'відбувся') {
     statusBadge = '<span class="status-badge status-completed">✓ Відбувся</span>';
@@ -76,30 +136,72 @@ function createLessonCardElement(lesson, student) {
   return card;
 }
 
-// 2. Відкриття модального вікна створення нового уроку
+// 2. Рендеринг розкладу
+function renderCalendar() {
+  const container = document.getElementById('calendar');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (lessons.length === 0) {
+    container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #777; padding: 20px;">Немає запланованих уроків.</p>';
+    return;
+  }
+
+  const grouped = {};
+  lessons.forEach(l => {
+    if (!grouped[l.date]) grouped[l.date] = [];
+    grouped[l.date].push(l);
+  });
+
+  const sortedDates = Object.keys(grouped).sort();
+
+  sortedDates.forEach(dateStr => {
+    const dayBox = document.createElement('div');
+    dayBox.className = 'day-column';
+    dayBox.style.cssText = 'background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px;';
+
+    const dayHeader = document.createElement('h3');
+    dayHeader.style.cssText = 'margin-bottom: 10px; font-size: 1rem; color: #475569; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px;';
+    dayHeader.innerText = dateStr;
+    dayBox.appendChild(dayHeader);
+
+    grouped[dateStr].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    grouped[dateStr].forEach(lesson => {
+      const student = students.find(s => String(s.id) === String(lesson.student_id));
+      const card = createLessonCardElement(lesson, student);
+      dayBox.appendChild(card);
+    });
+
+    container.appendChild(dayBox);
+  });
+}
+
+// 3. Відкриття модального вікна для нового уроку
 function openNewLessonModal() {
   document.getElementById('lessonId').value = '';
   document.getElementById('modalTitle').innerText = 'Додати урок';
   document.getElementById('lessonForm').reset();
-  
+
   document.getElementById('lessonDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('lessonTime').value = '12:00';
   document.getElementById('lessonStatus').value = 'заплановано';
+  document.getElementById('lessonTopic').value = '';
+  document.getElementById('lessonHomework').value = '';
   document.getElementById('lessonIsPaid').checked = false;
   document.getElementById('lessonPaymentAmount').value = 175;
   document.getElementById('lessonPaymentDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('lessonPaymentMethod').value = 'МоноБанк';
-  
+
   togglePaymentDetails(false);
   document.getElementById('deleteLessonContainer').innerHTML = '';
   document.getElementById('lessonModal').style.display = 'block';
 }
 
-// 3. Відкриття модального вікна редагування
+// 4. Відкриття модального вікна редагування
 function openEditLessonModal(lesson) {
   const isPast = isPastDate(lesson.date);
 
-  // Обмеження: Зміна минулих дат дозволена тільки у режимі налаштувань
   if (isPast && !isSettingsMode) {
     alert("Змінювати розклад за дату, яка вже пройшла, можна лише в режимі налаштувань.");
     return;
@@ -124,7 +226,7 @@ function openEditLessonModal(lesson) {
 
   togglePaymentDetails(isPaid);
 
-  // Кнопка видалення: додається ТІЛЬКИ у режимі налаштувань і ТІЛЬКИ для статусу "заплановано"
+  // Додаємо кнопку видалення тільки в режимі налаштувань і для статусу "заплановано"
   const deleteContainer = document.getElementById('deleteLessonContainer');
   deleteContainer.innerHTML = '';
 
@@ -144,14 +246,13 @@ function closeLessonModal() {
   document.getElementById('lessonModal').style.display = 'none';
 }
 
-// 4. Збереження даних уроку
+// 5. Збереження уроку
 async function handleSaveLesson(event) {
   event.preventDefault();
 
   const lessonId = document.getElementById('lessonId').value;
   const dateVal = document.getElementById('lessonDate').value;
 
-  // Повторна перевірка редакції минулої дати
   if (isPastDate(dateVal) && !isSettingsMode) {
     alert("Неможливо зберегти зміни для минулої дати поза режимом налаштувань.");
     return;
@@ -160,6 +261,7 @@ async function handleSaveLesson(event) {
   const isPaid = document.getElementById('lessonIsPaid').checked;
 
   const lessonData = {
+    id: lessonId || Date.now().toString(),
     student_id: document.getElementById('lessonStudent').value,
     date: dateVal,
     time: document.getElementById('lessonTime').value,
@@ -172,17 +274,28 @@ async function handleSaveLesson(event) {
     paymentMethod: isPaid ? document.getElementById('lessonPaymentMethod').value : null
   };
 
-  if (lessonId) {
-    await updateLessonInSupabase(lessonId, lessonData);
+  if (supabaseClient) {
+    if (lessonId) {
+      await supabaseClient.from('lessons').update(lessonData).eq('id', lessonId);
+    } else {
+      await supabaseClient.from('lessons').insert([lessonData]);
+    }
+    await loadLessons();
   } else {
-    await createLessonInSupabase(lessonData);
+    if (lessonId) {
+      const idx = lessons.findIndex(l => String(l.id) === String(lessonId));
+      if (idx !== -1) lessons[idx] = lessonData;
+    } else {
+      lessons.push(lessonData);
+    }
+    saveLessonsToLocal();
   }
 
   closeLessonModal();
   renderCalendar();
 }
 
-// 5. Видалення уроку (лише з режиму налаштувань)
+// 6. Видалення уроку
 async function handleDeleteLesson(lessonId) {
   if (!isSettingsMode) {
     alert("Видалення доступне лише в режимі налаштувань.");
@@ -190,25 +303,14 @@ async function handleDeleteLesson(lessonId) {
   }
 
   if (confirm("Ви впевнені, що хочете видалити цей запланований урок?")) {
-    await deleteLessonFromSupabase(lessonId);
+    if (supabaseClient) {
+      await supabaseClient.from('lessons').delete().eq('id', lessonId);
+      await loadLessons();
+    } else {
+      lessons = lessons.filter(l => String(l.id) !== String(lessonId));
+      saveLessonsToLocal();
+    }
     closeLessonModal();
     renderCalendar();
   }
-}
-
-// Функції роботи з базами даних та відмальовування
-async function updateLessonInSupabase(id, data) {
-  // Ваша логіка Supabase update
-}
-
-async function createLessonInSupabase(data) {
-  // Ваша логіка Supabase insert
-}
-
-async function deleteLessonFromSupabase(id) {
-  // Ваша логіка Supabase delete
-}
-
-function renderCalendar() {
-  // Оновлення відображення розкладу
 }
