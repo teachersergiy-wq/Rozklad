@@ -1,9 +1,8 @@
-// 1. ВСТАВТЕ ВАШІ КЛЮЧІ SUPABASE ТУТ:
 const SUPABASE_URL = "https://vjjrwvraannccejyqcci.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_XYvCzMPGQjhT0AT2r2v3dw_zZIesIJB";
 
 let supabaseClient = null;
-if (typeof supabase !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+if (typeof supabase !== 'undefined' && SUPABASE_URL) {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
@@ -27,7 +26,9 @@ async function initApp() {
 async function loadStudents() {
   if (supabaseClient) {
     const { data, error } = await supabaseClient.from('students').select('*');
-    if (!error && data && data.length > 0) {
+    if (error) {
+      console.error("Помилка завантаження учнів з Supabase:", error);
+    } else if (data) {
       students = data;
       return;
     }
@@ -39,8 +40,17 @@ async function loadStudents() {
 async function loadLessons() {
   if (supabaseClient) {
     const { data, error } = await supabaseClient.from('lessons').select('*');
-    if (!error && data) {
-      lessons = data;
+    if (error) {
+      console.error("Помилка завантаження уроків з Supabase:", error);
+    } else if (data) {
+      // Нормалізація полів (підтримка snake_case та camelCase)
+      lessons = data.map(l => ({
+        ...l,
+        isPaid: l.isPaid ?? l.is_paid ?? false,
+        paymentAmount: l.paymentAmount ?? l.payment_amount ?? null,
+        paymentDate: l.paymentDate ?? l.payment_date ?? null,
+        paymentMethod: l.paymentMethod ?? l.payment_method ?? null
+      }));
       return;
     }
   }
@@ -99,7 +109,16 @@ function togglePaymentDetails(isPaid) {
   }
 }
 
-// Отримання дат поточного тижня (починаючи з понеділка)
+function changeWeek(days) {
+  currentDate.setDate(currentDate.getDate() + days);
+  renderCalendar();
+}
+
+function resetToToday() {
+  currentDate = new Date();
+  renderCalendar();
+}
+
 function getWeekDays(d) {
   const date = new Date(d);
   const day = date.getDay();
@@ -116,7 +135,6 @@ function getWeekDays(d) {
   return weekDays;
 }
 
-// 1. Рендеринг картки уроку без хрестика
 function createLessonCardElement(lesson, student) {
   const card = document.createElement('div');
   card.className = `lesson-card status-${lesson.status || 'planned'}`;
@@ -154,11 +172,19 @@ function createLessonCardElement(lesson, student) {
   return card;
 }
 
-// 2. Рендеринг тижневої сітки розкладу
 function renderCalendar() {
   const container = document.getElementById('calendar');
   if (!container) return;
   container.innerHTML = '';
+
+  const navDiv = document.createElement('div');
+  navDiv.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #fff; padding: 10px 15px; border-radius: 8px; border: 1px solid #e2e8f0;';
+  navDiv.innerHTML = `
+    <button class="btn-primary" onclick="changeWeek(-7)">◄ Попередній тиждень</button>
+    <button class="btn-primary" style="background-color: #6c757d;" onclick="resetToToday()">Поточний тиждень</button>
+    <button class="btn-primary" onclick="changeWeek(7)">Наступний тиждень ►</button>
+  `;
+  container.appendChild(navDiv);
 
   const weekDays = getWeekDays(currentDate);
   const daysNames = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота', 'Неділя'];
@@ -166,14 +192,12 @@ function renderCalendar() {
   weekDays.forEach((dateStr, index) => {
     const dayBox = document.createElement('div');
     dayBox.className = 'day-column';
-    dayBox.style.cssText = 'background: #fff; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; min-height: 200px;';
 
     const dayHeader = document.createElement('h3');
     dayHeader.style.cssText = 'margin-bottom: 10px; font-size: 0.95rem; color: #475569; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; text-align: center;';
     dayHeader.innerText = `${daysNames[index]}\n${dateStr}`;
     dayBox.appendChild(dayHeader);
 
-    // Фільтрація уроків для конкретного дня
     const dayLessons = lessons.filter(l => l.date === dateStr);
     dayLessons.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
@@ -194,7 +218,6 @@ function renderCalendar() {
   });
 }
 
-// 3. Модальні вікна
 function openNewLessonModal() {
   document.getElementById('lessonId').value = '';
   document.getElementById('modalTitle').innerText = 'Додати урок';
@@ -261,7 +284,6 @@ function closeLessonModal() {
   document.getElementById('lessonModal').style.display = 'none';
 }
 
-// 4. Збереження уроку
 async function handleSaveLesson(event) {
   event.preventDefault();
 
@@ -284,16 +306,25 @@ async function handleSaveLesson(event) {
     topic: document.getElementById('lessonTopic').value.trim(),
     homework: document.getElementById('lessonHomework').value.trim(),
     isPaid: isPaid,
+    is_paid: isPaid,
     paymentAmount: isPaid ? (Number(document.getElementById('lessonPaymentAmount').value) || 175) : null,
+    payment_amount: isPaid ? (Number(document.getElementById('lessonPaymentAmount').value) || 175) : null,
     paymentDate: isPaid ? (document.getElementById('lessonPaymentDate').value || new Date().toISOString().split('T')[0]) : null,
-    paymentMethod: isPaid ? document.getElementById('lessonPaymentMethod').value : null
+    payment_date: isPaid ? (document.getElementById('lessonPaymentDate').value || new Date().toISOString().split('T')[0]) : null,
+    paymentMethod: isPaid ? document.getElementById('lessonPaymentMethod').value : null,
+    payment_method: isPaid ? document.getElementById('lessonPaymentMethod').value : null
   };
 
   if (supabaseClient) {
+    let result;
     if (lessonId) {
-      await supabaseClient.from('lessons').update(lessonData).eq('id', lessonId);
+      result = await supabaseClient.from('lessons').update(lessonData).eq('id', lessonId);
     } else {
-      await supabaseClient.from('lessons').insert([lessonData]);
+      result = await supabaseClient.from('lessons').insert([lessonData]);
+    }
+    if (result.error) {
+      console.error("Помилка збереження уроку в Supabase:", result.error);
+      alert("Помилка збереження в Supabase: " + result.error.message);
     }
     await loadLessons();
   } else {
@@ -310,7 +341,6 @@ async function handleSaveLesson(event) {
   renderCalendar();
 }
 
-// 5. Видалення уроку
 async function handleDeleteLesson(lessonId) {
   if (!isSettingsMode) {
     alert("Видалення доступне лише в режимі налаштувань.");
@@ -319,7 +349,10 @@ async function handleDeleteLesson(lessonId) {
 
   if (confirm("Ви впевнені, що хочете видалити цей запланований урок?")) {
     if (supabaseClient) {
-      await supabaseClient.from('lessons').delete().eq('id', lessonId);
+      const { error } = await supabaseClient.from('lessons').delete().eq('id', lessonId);
+      if (error) {
+        console.error("Помилка видалення уроку:", error);
+      }
       await loadLessons();
     } else {
       lessons = lessons.filter(l => String(l.id) !== String(lessonId));
