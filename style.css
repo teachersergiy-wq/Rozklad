@@ -34,6 +34,34 @@ body {
   font-weight: bold;
 }
 
+/* Сітка розкладу */
+.calendar-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .calendar-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+.day-column {
+  background: #fff;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  min-height: 220px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
 /* Модальне вікно */
 .modal {
   display: none;
@@ -151,10 +179,11 @@ body {
 /* Картка уроку */
 .lesson-card {
   background: #fff;
+  border: 1px solid #e0e0e0;
   border-radius: 6px;
-  padding: 12px;
+  padding: 10px;
   margin-bottom: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   transition: transform 0.1s ease;
 }
@@ -172,11 +201,12 @@ body {
 
 .lesson-time {
   font-weight: bold;
+  font-size: 0.85rem;
 }
 
 .status-badge {
-  font-size: 0.75rem;
-  padding: 2px 6px;
+  font-size: 0.7rem;
+  padding: 2px 5px;
   border-radius: 4px;
   font-weight: 500;
 }
@@ -197,8 +227,8 @@ body {
 }
 
 .lesson-body {
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.85rem;
+  line-height: 1.35;
 }
 
 .student-name {
@@ -206,9 +236,11 @@ body {
   margin-bottom: 4px;
 }
 
-.lesson-topic, .lesson-hw {
+.lesson-topic,
+.lesson-hw {
   color: #555;
   margin-top: 4px;
+  word-break: break-word;
 }
 
 .lesson-footer {
