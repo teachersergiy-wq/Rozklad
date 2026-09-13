@@ -25,14 +25,13 @@
     .calendar-container { width: 100%; }
 
     .calendar-grid { display: grid; gap: 8px; margin-top: 10px; width: 100%; }
-    .grid-week-desktop { grid-template-columns: 55px repeat(7, 1fr); }
-    .grid-week-mobile-block { grid-template-columns: 55px repeat(2, 1fr); margin-bottom: 20px; background: #fff; padding: 8px; border-radius: 10px; border: 1px solid #e2e8f0; }
-    .grid-week-mobile-block.single-day { grid-template-columns: 55px 1fr; }
-    .grid-day { grid-template-columns: 55px 1fr; }
+    .grid-week-desktop { grid-template-columns: repeat(7, 1fr); }
+    .grid-week-mobile-block { grid-template-columns: repeat(2, 1fr); margin-bottom: 20px; background: #fff; padding: 8px; border-radius: 10px; border: 1px solid #e2e8f0; }
+    .grid-week-mobile-block.single-day { grid-template-columns: 1fr; }
+    .grid-day { grid-template-columns: 1fr; }
     .grid-month { grid-template-columns: repeat(7, 1fr); }
     
-    .time-slot { border-top: 1px dashed #e2e8f0; min-height: 56px; display: flex; flex-direction: column; gap: 4px; padding: 2px; position: relative; justify-content: center; }
-    .time-label { font-size: 0.8rem; color: #64748b; font-weight: 600; align-items: flex-end; justify-content: center; padding-right: 8px; border: none; }
+    .time-slot { border-top: 1px dashed #e2e8f0; min-height: 52px; display: flex; flex-direction: column; gap: 4px; padding: 2px; position: relative; justify-content: center; }
     
     /* Шапки днів */
     .day-header { text-align: center; padding: 8px 4px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; color: #1e293b; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -41,10 +40,15 @@
     .day-header.today .day-header-name { color: #1d4ed8; }
     .day-header-date { font-size: 1.15rem; font-weight: 800; color: #0f172a; margin-top: 1px; }
 
-    .slot-free { border: 1px dashed #cbd5e1; border-radius: 6px; color: #94a3b8; font-size: 0.75rem; min-height: 48px; width: 100%; display: flex; align-items: center; justify-content: center; background: #fafafa; font-weight: 500; }
-    .slot-free.out-of-range { border: 1px dashed #f1f5f9; background: transparent; }
+    .slot-free { border: 1px dashed #cbd5e1; border-radius: 6px; color: #64748b; font-size: 0.8rem; min-height: 46px; width: 100%; display: flex; align-items: center; justify-content: center; background: #fafafa; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    .slot-free:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .slot-free.out-of-range { border: 1px dashed #f1f5f9; background: transparent; color: transparent; cursor: default; }
     .slot-free.drag-over { background: #e0e7ff; border-color: #6366f1; }
     
+    .slot-unavailable { border: 1px dashed #cbd5e1; border-radius: 6px; color: #94a3b8; font-size: 0.8rem; min-height: 46px; width: 100%; display: flex; align-items: center; justify-content: center; background: #f1f5f9; font-weight: 600; cursor: pointer; font-style: italic; }
+    .slot-unavailable:hover { background: #e2e8f0; }
+    .slot-hidden { visibility: hidden; min-height: 46px; width: 100%; }
+
     .lesson-card { width: 100%; border-radius: 6px; padding: 6px 8px; color: #1e293b; font-size: 0.8rem; display: flex; flex-direction: column; justify-content: space-between; cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.06); position: relative; gap: 4px; border: 1px solid rgba(0,0,0,0.08); }
     .lesson-card:hover { filter: brightness(0.97); }
     .lesson-card:active { cursor: grabbing; }
@@ -56,7 +60,6 @@
     .month-cell.today { background: #eff6ff !important; border: 2px solid #2563eb !important; }
     .month-cell.padding-cell { background: #f8fafc; border-color: #f1f5f9; opacity: 0.5; }
     
-    /* Номер дня у місяці — ЖИРНИЙ і ВІДЦЕНТРОВАНИЙ */
     .month-day-num { font-weight: 800; font-size: 1rem; color: #1e293b; text-align: center; width: 100%; margin-bottom: 2px; }
     .month-day-num.today-num { color: #2563eb; font-size: 1.05rem; }
     .month-day-num.muted { color: #94a3b8; font-weight: 600; }
@@ -90,7 +93,6 @@
 
     .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; margin-bottom: 10px; }
 
-    /* Адаптація під мобільні */
     @media (max-width: 640px) {
       body { padding: 10px; }
       .header h1 { font-size: 1.2rem; text-align: center; width: 100%; margin-bottom: 4px; }
@@ -135,7 +137,7 @@
       <h2 style="margin-top:0; font-size:1.25rem; color:#0f172a;">Налаштування</h2>
       
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
-        <button id="modal-add-lesson-btn" class="primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">+ Додати урок</button>
+        <button id="modal-add-lesson-btn" class="primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">+ Додати / Налаштувати урок</button>
         <button id="modal-manage-students-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">Управління учнями</button>
         
         <label class="setting-item" style="cursor: pointer;">
@@ -179,9 +181,18 @@
   <!-- Модальне вікно додавання/редагування уроку -->
   <div id="lesson-modal" class="modal hidden">
     <div class="modal-content">
-      <h2 style="margin-top:0; font-size:1.25rem; color:#0f172a;" id="lesson-modal-title">Додати урок</h2>
-      
+      <h2 style="margin-top:0; font-size:1.25rem; color:#0f172a;" id="lesson-modal-title">Налаштування уроку</h2>
+
       <div class="form-group">
+        <label>Статус уроку</label>
+        <select id="lesson-status-select">
+          <option value="busy">Зайнято учнем</option>
+          <option value="free">Вільно</option>
+          <option value="unavailable">Недоступно</option>
+        </select>
+      </div>
+      
+      <div class="form-group" id="student-select-group">
         <label>Оберіть учня</label>
         <select id="lesson-student-select"></select>
       </div>
@@ -202,21 +213,12 @@
         </div>
       </div>
 
-      <div class="form-group flex-row">
-        <div style="flex:1;">
-          <label>Оплата</label>
-          <select id="lesson-paid-select">
-            <option value="false">Не оплачено</option>
-            <option value="true">Оплачено</option>
-          </select>
-        </div>
-        <div style="flex:1;">
-          <label>Статус</label>
-          <select id="lesson-status-select">
-            <option value="planned">Запланований</option>
-            <option value="completed">Відбувся</option>
-          </select>
-        </div>
+      <div class="form-group" id="paid-select-group">
+        <label>Оплата</label>
+        <select id="lesson-paid-select">
+          <option value="false">Не оплачено</option>
+          <option value="true">Оплачено</option>
+        </select>
       </div>
 
       <div class="form-group" id="repeat-group">
