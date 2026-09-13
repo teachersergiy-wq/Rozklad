@@ -2562,219 +2562,52 @@ function toggleEditMode() {
    INIT
 ========================================================= */
 
+/* Тимчасовий тестовий init для перевірки відображення */
 async function init() {
+  // Додаємо тестових учнів та уроки в локальний стан, якщо порожньо
+  state = {
+    students: [
+      { id: "1", name: "Іван", color: "green" },
+      { id: "2", name: "Олена", color: "blue" }
+    ],
+    lessons: {}
+  };
 
-  const calendar =
-    document.getElementById(
-      "calendar"
-    );
+  /* Навігація */
+  document.getElementById("prevBtn").addEventListener("click", goPrevious);
+  document.getElementById("nextBtn").addEventListener("click", goNext);
+  document.getElementById("todayBtn").addEventListener("click", goToday);
 
+  /* Режими */
+  document.querySelectorAll(".view-btn").forEach(button => {
+    button.addEventListener("click", () => setView(button.dataset.view));
+  });
 
-  calendar.innerHTML =
-    "<div style='padding:30px;text-align:center'>Завантаження розкладу…</div>";
+  /* Редагування */
+  document.getElementById("editModeBtn").addEventListener("click", toggleEditMode);
 
+  /* Модальне вікно */
+  document.getElementById("closeModalBtn").addEventListener("click", closeLessonModal);
+  document.getElementById("cancelModalBtn").addEventListener("click", closeLessonModal);
+  document.getElementById("saveLessonBtn").addEventListener("click", saveLesson);
+  document.getElementById("deleteLessonBtn").addEventListener("click", deleteActiveLesson);
+  document.getElementById("slotStatus").addEventListener("change", updateModalVisibility);
 
-  try {
+  /* Кольори */
+  document.querySelectorAll(".color-option").forEach(button => {
+    button.addEventListener("click", () => selectStudentColor(button.dataset.color));
+  });
 
-    await loadCloudSchedule();
-
-
-  } catch (error) {
-
-    console.error(
-      error
-    );
-
-
-    calendar.innerHTML =
-      `
-        <div style="
-          padding:30px;
-          text-align:center;
-        ">
-          Не вдалося завантажити розклад.
-          <br><br>
-          Перевір налаштування Supabase
-          у файлі app.js.
-        </div>
-      `;
-
-    return;
-
-  }
-
-
-  /*
-    Navigation
-  */
-
-  document.getElementById(
-    "prevBtn"
-  ).addEventListener(
-    "click",
-    goPrevious
-  );
-
-
-  document.getElementById(
-    "nextBtn"
-  ).addEventListener(
-    "click",
-    goNext
-  );
-
-
-  document.getElementById(
-    "todayBtn"
-  ).addEventListener(
-    "click",
-    goToday
-  );
-
-
-  /*
-    Views
-  */
-
-  document
-    .querySelectorAll(
-      ".view-btn"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          () => {
-
-            setView(
-              button.dataset.view
-            );
-
-          }
-        );
-
-      }
-    );
-
-
-  /*
-    Edit
-  */
-
-  document.getElementById(
-    "editModeBtn"
-  ).addEventListener(
-    "click",
-    toggleEditMode
-  );
-
-
-  /*
-    Modal
-  */
-
-  document.getElementById(
-    "closeModalBtn"
-  ).addEventListener(
-    "click",
-    closeLessonModal
-  );
-
-
-  document.getElementById(
-    "cancelModalBtn"
-  ).addEventListener(
-    "click",
-    closeLessonModal
-  );
-
-
-  document.getElementById(
-    "saveLessonBtn"
-  ).addEventListener(
-    "click",
-    saveLesson
-  );
-
-
-  document.getElementById(
-    "deleteLessonBtn"
-  ).addEventListener(
-    "click",
-    deleteActiveLesson
-  );
-
-
-  document.getElementById(
-    "slotStatus"
-  ).addEventListener(
-    "change",
-    updateModalVisibility
-  );
-
-
-  /*
-    Colors
-  */
-
-  document
-    .querySelectorAll(
-      ".color-option"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          () => {
-
-            selectStudentColor(
-              button.dataset.color
-            );
-
-          }
-        );
-
-      }
-    );
-
-
-  /*
-    Modal overlay
-  */
-
-  document
-    .querySelector(
-      ".modal-overlay"
-    )
-    .addEventListener(
-      "click",
-      closeLessonModal
-    );
-
-
-  document.addEventListener(
-    "keydown",
-    event => {
-
-      if (
-        event.key === "Escape"
-      ) {
-
-        closeLessonModal();
-
-      }
-
-    }
-  );
-
+  document.querySelector(".modal-overlay").addEventListener("click", closeLessonModal);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeLessonModal();
+  });
 
   updateCalendarTitle();
-
   renderCalendar();
-
 }
+
+document.addEventListener("DOMContentLoaded", init);
 
 
 document.addEventListener(
