@@ -63,7 +63,9 @@ const elements = {
   lessonPaidSelect: document.getElementById('lesson-paid-select'),
   lessonStatusSelect: document.getElementById('lesson-status-select'),
   lessonRepeatSelect: document.getElementById('lesson-repeat-select'),
-  repeatGroup: document.getElementById('repeat-group')
+  repeatGroup: document.getElementById('repeat-group'),
+  studentSelectGroup: document.getElementById('student-select-group'),
+  paidSelectGroup: document.getElementById('paid-select-group')
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -121,7 +123,13 @@ function sanitizeState() {
     l.id = l.id ? String(l.id) : String(Date.now() + '_' + idx);
     l.studentId = String(l.studentId || '');
     l.paid = l.paid === true || l.paid === 'true';
-    l.status = l.status || 'planned';
+
+    // Адаптація старих статусів
+    if (!l.status || l.status === 'planned' || l.status === 'completed') {
+      l.status = l.studentId ? 'busy' : 'free';
+    } else if (!['busy', 'free', 'unavailable'].includes(l.status)) {
+      l.status = 'busy';
+    }
   });
 }
 
@@ -354,8 +362,6 @@ function renderGrid() {
   const startOfWeek = getStartOfWeek(state.currentDate);
   const daysDates = [];
 
-  elements.calendarGrid.appendChild(document.createElement('div'));
-
   for (let i = 0; i < daysCount; i++) {
     const date = isWeek ? new Date(startOfWeek) : new Date(state.currentDate);
     if (isWeek) date.setDate(startOfWeek.getDate() + i);
@@ -368,7 +374,6 @@ function renderGrid() {
   renderTimeSlotsForDays(elements.calendarGrid, daysDates);
 }
 
-// Повідомлення для тижневого режиму на мобільних пристроях (блок по 2 дні)
 function renderWeekViewMobile() {
   elements.calendarGrid.className = 'calendar-grid';
 
@@ -380,7 +385,6 @@ function renderWeekViewMobile() {
     daysDates.push(d);
   }
 
-  // Групуємо дні по 2 (Пн-Вт, Ср-Чт, Пт-Сб, Нд)
   const dayChunks = [];
   for (let i = 0; i < daysDates.length; i += 2) {
     dayChunks.push(daysDates.slice(i, i + 2));
@@ -389,8 +393,6 @@ function renderWeekViewMobile() {
   dayChunks.forEach(chunk => {
     const block = document.createElement('div');
     block.className = `calendar-grid grid-week-mobile-block ${chunk.length === 1 ? 'single-day' : ''}`;
-
-    block.appendChild(document.createElement('div'));
 
     chunk.forEach(date => {
       const header = createDayHeaderElement(date);
@@ -428,11 +430,6 @@ function renderTimeSlotsForDays(container, daysDates) {
   sortedHours.forEach(h => {
     const timeStr = `${String(h).padStart(2, '0')}:00`;
 
-    const timeLabel = document.createElement('div');
-    timeLabel.className = 'time-slot time-label';
-    timeLabel.textContent = timeStr;
-    container.appendChild(timeLabel);
-
     daysDates.forEach(date => {
       const dateISO = formatDateISO(date);
       const slot = document.createElement('div');
@@ -446,31 +443,68 @@ function renderTimeSlotsForDays(container, daysDates) {
 
       if (slotLessons.length > 0) {
         slotLessons.forEach(lesson => {
-          const card = createLessonCard(lesson);
-          slot.appendChild(card);
+          if (lesson.status === 'unavailable') {
+            const isVisible = (state.view === 'day') || state.isEditMode;
+            if (isVisible) {
+              const unavailSlot = document.createElement('div');
+              unavailSlot.className = 'slot-unavailable';
+              unavailSlot.textContent = `${timeStr} недоступно`;
+              unavailSlot.onclick = () => openEditLessonModal(lesson.id);
+              slot.appendChild(unavailSlot);
+            } else {
+              const hiddenSlot = document.createElement('div');
+              hiddenSlot.className = 'slot-hidden';
+              slot.appendChild(hiddenSlot);
+            }
+          } else if (lesson.status === 'free') {
+            const freeSlot = createFreeSlotElement(timeStr, dateISO, lesson);
+            slot.appendChild(freeSlot);
+          } else {
+            const card = createLessonCard(lesson);
+            slot.appendChild(card);
+          }
         });
       } else {
         const isBaseFreeHour = h >= baseStart && h <= baseEnd;
 
-        const freeSlot = document.createElement('div');
-        freeSlot.className = `slot-free ${!isBaseFreeHour ? 'out-of-range' : ''}`;
-        freeSlot.textContent = isBaseFreeHour ? 'Вільно' : '';
-
-        freeSlot.ondragover = (e) => { e.preventDefault(); freeSlot.classList.add('drag-over'); };
-        freeSlot.ondragleave = () => freeSlot.classList.remove('drag-over');
-        freeSlot.ondrop = async (e) => {
-          e.preventDefault();
-          freeSlot.classList.remove('drag-over');
-          const lessonId = e.dataTransfer.getData('text/plain');
-          await moveLesson(lessonId, dateISO, timeStr);
-        };
-
-        slot.appendChild(freeSlot);
+        if (isBaseFreeHour) {
+          const freeSlot = createFreeSlotElement(timeStr, dateISO, null);
+          slot.appendChild(freeSlot);
+        } else {
+          const emptySlot = document.createElement('div');
+          emptySlot.className = 'slot-free out-of-range';
+          slot.appendChild(emptySlot);
+        }
       }
 
       container.appendChild(slot);
     });
   });
+}
+
+function createFreeSlotElement(timeStr, dateISO, existingLesson) {
+  const freeSlot = document.createElement('div');
+  freeSlot.className = 'slot-free';
+  freeSlot.textContent = `${timeStr} вільно`;
+
+  freeSlot.onclick = () => {
+    if (existingLesson) {
+      openEditLessonModal(existingLesson.id);
+    } else {
+      openAddLessonModalWithTime(dateISO, timeStr);
+    }
+  };
+
+  freeSlot.ondragover = (e) => { e.preventDefault(); freeSlot.classList.add('drag-over'); };
+  freeSlot.ondragleave = () => freeSlot.classList.remove('drag-over');
+  freeSlot.ondrop = async (e) => {
+    e.preventDefault();
+    freeSlot.classList.remove('drag-over');
+    const lessonId = e.dataTransfer.getData('text/plain');
+    await moveLesson(lessonId, dateISO, timeStr);
+  };
+
+  return freeSlot;
 }
 
 function createLessonCard(lesson) {
@@ -482,7 +516,6 @@ function createLessonCard(lesson) {
   card.draggable = true;
 
   const isPaid = lesson.paid === true || lesson.paid === 'true';
-  const isCompleted = lesson.status === 'completed';
 
   const topRow = document.createElement('div');
   topRow.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:4px;';
@@ -516,14 +549,7 @@ function createLessonCard(lesson) {
   paidBadge.style.color = isPaid ? '#15803d' : '#991b1b';
   paidBadge.textContent = isPaid ? 'Оплачено' : 'Не опл.';
 
-  const statusBadge = document.createElement('span');
-  statusBadge.className = 'badge';
-  statusBadge.style.backgroundColor = isCompleted ? '#e2e8f0' : '#dbeafe';
-  statusBadge.style.color = isCompleted ? '#334155' : '#1d4ed8';
-  statusBadge.textContent = isCompleted ? 'Відбувся' : 'Заплан.';
-
   badgesRow.appendChild(paidBadge);
-  badgesRow.appendChild(statusBadge);
 
   card.appendChild(topRow);
   card.appendChild(badgesRow);
@@ -570,35 +596,36 @@ function renderMonthView() {
     const cell = document.createElement('div');
     cell.className = `month-cell ${isCurrentToday ? 'today' : ''}`;
 
-    // Дати в Місяці — ВІДЦЕНТРОВАНІ та ЖИРНІ
     const numDiv = document.createElement('div');
     numDiv.className = `month-day-num ${isCurrentToday ? 'today-num' : ''}`;
     numDiv.textContent = day;
     cell.appendChild(numDiv);
 
-    const dayLessons = state.lessons.filter(l => l.date === dateISO);
+    // У режимі "Місяць" НЕ відображаються недоступні слоти
+    const dayLessons = state.lessons.filter(l => l.date === dateISO && l.status !== 'unavailable');
     dayLessons.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
     dayLessons.forEach(l => {
       const s = state.students.find(st => String(st.id) === String(l.studentId));
       const badge = document.createElement('div');
       badge.className = 'month-lesson-badge';
-      badge.style.backgroundColor = s ? (s.color || PASTEL_COLORS[0]) : '#f5f5f4';
+      badge.style.backgroundColor = (l.status === 'busy' && s) ? (s.color || PASTEL_COLORS[0]) : '#f5f5f4';
 
       const isPaid = l.paid === true || l.paid === 'true';
-      const isCompleted = l.status === 'completed';
 
       let indicatorsHTML = '';
-      if (isPaid) {
+      if (l.status === 'busy' && isPaid) {
         indicatorsHTML += '<span style="color:#15803d; font-weight:800; font-size:0.85rem;" title="Оплачено">$</span>';
-      }
-      if (isCompleted) {
-        indicatorsHTML += '<span style="color:#16a34a; font-weight:800; font-size:0.85rem;" title="Відбувся">✓</span>';
       }
 
       const textSpan = document.createElement('span');
       textSpan.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1e293b; font-weight:600;';
-      textSpan.innerHTML = `<strong>${l.time || ''}</strong> ${s ? s.name : ''}`;
+      
+      if (l.status === 'free') {
+        textSpan.innerHTML = `<strong>${l.time || ''}</strong> вільно`;
+      } else {
+        textSpan.innerHTML = `<strong>${l.time || ''}</strong> ${s ? s.name : 'Учень'}`;
+      }
 
       const iconSpan = document.createElement('span');
       iconSpan.style.cssText = 'display:flex; align-items:center; gap:2px; flex-shrink:0;';
@@ -638,15 +665,43 @@ async function moveLesson(lessonId, newDate, newTime) {
   }
 }
 
+function toggleModalFieldsByStatus(status) {
+  const isBusy = status === 'busy';
+  if (elements.studentSelectGroup) elements.studentSelectGroup.style.display = isBusy ? 'block' : 'none';
+  if (elements.paidSelectGroup) elements.paidSelectGroup.style.display = isBusy ? 'block' : 'none';
+  if (elements.repeatGroup) {
+    elements.repeatGroup.style.display = (isBusy && !state.editingLessonId) ? 'block' : 'none';
+  }
+}
+
+function openAddLessonModalWithTime(dateISO, timeStr) {
+  state.editingLessonId = null;
+  elements.lessonModalTitle.textContent = 'Додати / Налаштувати урок';
+  updateStudentSelectOptions();
+  elements.lessonDateInput.value = dateISO || formatDateISO(state.currentDate);
+
+  const parts = (timeStr || '18:00').split(':');
+  elements.lessonHourSelect.value = String(parts[0]).padStart(2, '0');
+  elements.lessonMinuteSelect.value = String(parts[1]).padStart(2, '0');
+
+  elements.lessonPaidSelect.value = 'false';
+  elements.lessonStatusSelect.value = 'busy';
+  toggleModalFieldsByStatus('busy');
+
+  elements.lessonModal.classList.remove('hidden');
+}
+
 function openEditLessonModal(lessonId) {
   const lesson = state.lessons.find(l => String(l.id) === String(lessonId));
   if (!lesson) return;
 
   state.editingLessonId = String(lessonId);
-  elements.lessonModalTitle.textContent = 'Редагувати урок';
+  elements.lessonModalTitle.textContent = 'Редагувати слот / урок';
 
   updateStudentSelectOptions();
-  elements.lessonStudentSelect.value = String(lesson.studentId);
+  if (lesson.studentId) {
+    elements.lessonStudentSelect.value = String(lesson.studentId);
+  }
   elements.lessonDateInput.value = lesson.date;
 
   const parts = (lesson.time || '18:00').split(':');
@@ -654,14 +709,15 @@ function openEditLessonModal(lessonId) {
   elements.lessonMinuteSelect.value = String(parts[1]).padStart(2, '0');
 
   elements.lessonPaidSelect.value = String(lesson.paid);
-  elements.lessonStatusSelect.value = lesson.status || 'planned';
 
-  elements.repeatGroup.style.display = 'none';
+  const currentStatus = lesson.status || (lesson.studentId ? 'busy' : 'free');
+  elements.lessonStatusSelect.value = currentStatus;
+  toggleModalFieldsByStatus(currentStatus);
+
   elements.lessonModal.classList.remove('hidden');
 }
 
 function setupEventListeners() {
-  // Налаштування
   elements.settingsBtn.onclick = () => elements.settingsModal.classList.remove('hidden');
   elements.closeSettingsModalBtn.onclick = () => elements.settingsModal.classList.add('hidden');
 
@@ -672,7 +728,7 @@ function setupEventListeners() {
 
   elements.modalAddLessonBtn.onclick = () => {
     elements.settingsModal.classList.add('hidden');
-    openAddLessonModal();
+    openAddLessonModalWithTime(formatDateISO(state.currentDate), '18:00');
   };
 
   elements.modalManageStudentsBtn.onclick = () => {
@@ -700,36 +756,27 @@ function setupEventListeners() {
     render();
   };
 
-  function openAddLessonModal() {
-    if (state.students.length === 0) {
-      alert('Спочатку додайте хоча б одного учня!');
-      elements.studentsModal.classList.remove('hidden');
-      return;
-    }
-    state.editingLessonId = null;
-    elements.lessonModalTitle.textContent = 'Додати урок';
-    updateStudentSelectOptions();
-    elements.lessonDateInput.value = formatDateISO(state.currentDate);
-    elements.lessonHourSelect.value = '18';
-    elements.lessonMinuteSelect.value = '00';
-    elements.lessonPaidSelect.value = 'false';
-    elements.lessonStatusSelect.value = 'planned';
-    elements.repeatGroup.style.display = 'block';
-    elements.lessonModal.classList.remove('hidden');
-  }
+  elements.lessonStatusSelect.onchange = (e) => {
+    toggleModalFieldsByStatus(e.target.value);
+  };
 
   elements.closeLessonModalBtn.onclick = () => elements.lessonModal.classList.add('hidden');
 
   elements.saveLessonBtn.onclick = async () => {
+    const status = elements.lessonStatusSelect.value;
     const studentId = String(elements.lessonStudentSelect.value);
     const baseDateStr = elements.lessonDateInput.value;
     const hour = elements.lessonHourSelect.value;
     const minute = elements.lessonMinuteSelect.value;
     const paid = elements.lessonPaidSelect.value === 'true';
-    const status = elements.lessonStatusSelect.value;
 
-    if (!studentId || !baseDateStr) {
-      alert('Заповніть усі поля!');
+    if (!baseDateStr) {
+      alert('Будь ласка, вкажіть дату!');
+      return;
+    }
+
+    if (status === 'busy' && !studentId && state.students.length > 0) {
+      alert('Будь ласка, оберіть учня!');
       return;
     }
 
@@ -738,25 +785,25 @@ function setupEventListeners() {
     if (state.editingLessonId) {
       const lesson = state.lessons.find(l => String(l.id) === String(state.editingLessonId));
       if (lesson) {
-        lesson.studentId = studentId;
+        lesson.studentId = status === 'busy' ? studentId : '';
         lesson.date = baseDateStr;
         lesson.time = time;
-        lesson.paid = paid;
+        lesson.paid = status === 'busy' ? paid : false;
         lesson.status = status;
       }
     } else {
-      const repeatCount = parseInt(elements.lessonRepeatSelect.value, 10) || 1;
+      const repeatCount = (status === 'busy') ? (parseInt(elements.lessonRepeatSelect.value, 10) || 1) : 1;
       const [y, m, d] = baseDateStr.split('-').map(Number);
 
       for (let i = 0; i < repeatCount; i++) {
         const targetDate = new Date(y, m - 1, d + (i * 7));
         state.lessons.push({
           id: `${Date.now()}_${i}`,
-          studentId,
+          studentId: status === 'busy' ? studentId : '',
           date: formatDateISO(targetDate),
           time,
-          paid,
-          status
+          paid: status === 'busy' ? paid : false,
+          status: status
         });
       }
     }
