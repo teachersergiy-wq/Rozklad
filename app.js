@@ -1,2619 +1,800 @@
-"use strict";
+const SUPABASE_URL = "https://vjjrwvraannccejyqcci.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_XYvCzMPGQjhT0AT2r2v3dw_zZIesIJB";
 
-/* =========================================================
-   SUPABASE
-========================================================= */
+const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
 
-const SUPABASE_URL = 
-  "https://vjjrwvraannccejyqcci.supabase.co";
+// 7 вказаних ненасичених пастельних кольорів
+const PASTEL_COLORS = [
+  '#f5f5f4', // Світло-сірий
+  '#fce7f3', // Ніжно-рожевий
+  '#ccfbf1', // Ніжно-м'ятний
+  '#dbeafe', // Ніжно-блакитний
+  '#fef3c7', // Ніжно-жовтий
+  '#ffe4e6', // Ніжно-персиковий
+  '#e0f2fe'  // Небесно-голубий
+];
 
-const SUPABASE_PUBLISHABLE_KEY = 
-  "sb_publishable_XYvCzMPGQjhT0AT2r2v3dw_zZIesIJB";
+const MONTH_NAMES_SHORT = ['січ.', 'лют.', 'берез.', 'квіт.', 'трав.', 'черв.', 'лип.', 'серп.', 'верес.', 'жовт.', 'лист.', 'груд.'];
+const DAY_NAMES_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 
-const supabaseClient =
-  window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY
-  );
+let state = {
+  key: null,
+  students: [],
+  lessons: [],
+  currentDate: new Date(),
+  view: 'day', // За замовчуванням вкладка "День"
+  isEditMode: false,
+  editingLessonId: null,
+  selectedNewStudentColor: PASTEL_COLORS[0]
+};
 
+const elements = {
+  currentDateDisplay: document.getElementById('current-date-display'),
+  calendarGrid: document.getElementById('calendar-grid'),
+  todayBtn: document.getElementById('today-btn'),
+  prevBtn: document.getElementById('prev-date-btn'),
+  nextBtn: document.getElementById('next-date-btn'),
+  viewDayBtn: document.getElementById('view-day-btn'),
+  viewWeekBtn: document.getElementById('view-week-btn'),
+  viewMonthBtn: document.getElementById('view-month-btn'),
+  
+  settingsBtn: document.getElementById('settings-btn'),
+  settingsModal: document.getElementById('settings-modal'),
+  closeSettingsModalBtn: document.getElementById('close-settings-modal-btn'),
+  modalAddLessonBtn: document.getElementById('modal-add-lesson-btn'),
+  modalManageStudentsBtn: document.getElementById('modal-manage-students-btn'),
+  editModeCheckbox: document.getElementById('edit-mode-checkbox'),
+  
+  studentsModal: document.getElementById('students-modal'),
+  closeStudentsModalBtn: document.getElementById('close-students-modal-btn'),
+  newStudentName: document.getElementById('new-student-name'),
+  newStudentSwatches: document.getElementById('new-student-swatches'),
+  addStudentBtn: document.getElementById('add-student-btn'),
+  studentsList: document.getElementById('students-list'),
 
-let cloudAccessToken = null;
+  lessonModal: document.getElementById('lesson-modal'),
+  lessonModalTitle: document.getElementById('lesson-modal-title'),
+  closeLessonModalBtn: document.getElementById('close-lesson-modal-btn'),
+  saveLessonBtn: document.getElementById('save-lesson-btn'),
+  lessonStudentSelect: document.getElementById('lesson-student-select'),
+  lessonDateInput: document.getElementById('lesson-date-input'),
+  lessonHourSelect: document.getElementById('lesson-hour-select'),
+  lessonMinuteSelect: document.getElementById('lesson-minute-select'),
+  lessonPaidSelect: document.getElementById('lesson-paid-select'),
+  lessonStatusSelect: document.getElementById('lesson-status-select'),
+  lessonRepeatSelect: document.getElementById('lesson-repeat-select'),
+  repeatGroup: document.getElementById('repeat-group')
+};
 
+document.addEventListener('DOMContentLoaded', async () => {
+  initTimeOptions();
+  setupEventListeners();
 
-/* =========================================================
-   CONFIG
-========================================================= */
+  const urlParams = new URLSearchParams(window.location.search);
+  state.key = urlParams.get('key') || 'default_schedule';
 
-const START_MINUTES = 9 * 60;
-const END_MINUTES = 21 * 60;
+  await loadSchedule();
+  sanitizeState();
+  renderNewStudentSwatches();
+  render();
+});
 
-/*
-  Відображення календаря — 15 хв.
-*/
-const DISPLAY_STEP_MINUTES = 15;
+window.addEventListener('resize', () => {
+  if (state.view === 'week') render();
+});
 
-/*
-  Вибір часу заняття — 5 хв.
-*/
-const TIME_PICKER_STEP_MINUTES = 5;
-
-const DEFAULT_UNAVAILABLE_BEFORE =
-  17 * 60;
-
-
-/* =========================================================
-   STATE
-========================================================= */
-
-function defaultState() {
-
-  return {
-    students: [],
-    lessons: {}
-  };
-
-}
-
-
-let state =
-  defaultState();
-
-let currentDate =
-  new Date();
-
-let currentView =
-  "week";
-
-let editMode =
-  false;
-
-let activeSlot =
-  null;
-
-let draggedLesson =
-  null;
-
-let justDropped =
-  false;
-
-
-/* =========================================================
-   TIME
-========================================================= */
-
-function pad(number) {
-
-  return String(number)
-    .padStart(2, "0");
-
-}
-
-
-function minutesToTime(minutes) {
-
-  const hours =
-    Math.floor(minutes / 60);
-
-  const mins =
-    minutes % 60;
-
-  return `${pad(hours)}:${pad(mins)}`;
-
-}
-
-
-function timeToMinutes(time) {
-
-  if (!time || !time.includes(":")) {
-    return null;
+function initTimeOptions() {
+  elements.lessonHourSelect.innerHTML = '';
+  for (let h = 8; h <= 22; h++) {
+    const hourStr = String(h).padStart(2, '0');
+    const opt = document.createElement('option');
+    opt.value = hourStr;
+    opt.textContent = hourStr;
+    if (h === 18) opt.selected = true;
+    elements.lessonHourSelect.appendChild(opt);
   }
 
-  const [hours, minutes] =
-    time.split(":").map(Number);
-
-  if (
-    Number.isNaN(hours) ||
-    Number.isNaN(minutes)
-  ) {
-    return null;
+  elements.lessonMinuteSelect.innerHTML = '';
+  for (let m = 0; m < 60; m += 5) {
+    const minStr = String(m).padStart(2, '0');
+    const opt = document.createElement('option');
+    opt.value = minStr;
+    opt.textContent = minStr;
+    if (m === 0) opt.selected = true;
+    elements.lessonMinuteSelect.appendChild(opt);
   }
-
-  return hours * 60 + minutes;
-
 }
 
+function sanitizeState() {
+  if (!Array.isArray(state.students)) state.students = [];
+  if (!Array.isArray(state.lessons)) state.lessons = [];
 
-/*
-  Часові рядки календаря:
-  09:00
-  09:15
-  09:30
-  ...
-  21:00
-*/
-function createDisplayTimeSlots() {
-
-  const result = [];
-
-  for (
-    let minutes = START_MINUTES;
-    minutes <= END_MINUTES;
-    minutes += DISPLAY_STEP_MINUTES
-  ) {
-
-    result.push(
-      minutesToTime(minutes)
-    );
-
-  }
-
-  return result;
-
-}
-
-
-const DISPLAY_TIME_SLOTS =
-  createDisplayTimeSlots();
-
-
-/*
-  Час для input type="time":
-  09:00
-  09:05
-  09:10
-  ...
-*/
-function createPickerTimeSlots() {
-
-  const result = [];
-
-  for (
-    let minutes = START_MINUTES;
-    minutes <= END_MINUTES;
-    minutes += TIME_PICKER_STEP_MINUTES
-  ) {
-
-    result.push(
-      minutesToTime(minutes)
-    );
-
-  }
-
-  return result;
-
-}
-
-
-const PICKER_TIME_SLOTS =
-  createPickerTimeSlots();
-
-
-/* =========================================================
-   DATE
-========================================================= */
-
-function dateKey(date) {
-
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate())
-  ].join("-");
-
-}
-
-
-function parseDate(key) {
-
-  const [
-    year,
-    month,
-    day
-  ] = key.split("-").map(Number);
-
-  return new Date(
-    year,
-    month - 1,
-    day
-  );
-
-}
-
-
-function formatDate(date) {
-
-  return date.toLocaleDateString(
-    "uk-UA",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
+  state.students.forEach((s, idx) => {
+    s.id = s.id ? String(s.id) : String(Date.now() + idx);
+    s.name = s.name || `Учень ${idx + 1}`;
+    if (!PASTEL_COLORS.includes(s.color)) {
+      s.color = PASTEL_COLORS[idx % PASTEL_COLORS.length];
     }
-  );
+  });
 
+  state.lessons.forEach((l, idx) => {
+    l.id = l.id ? String(l.id) : String(Date.now() + '_' + idx);
+    l.studentId = String(l.studentId || '');
+    l.paid = l.paid === true || l.paid === 'true';
+    l.status = l.status || 'planned';
+  });
 }
 
+async function loadSchedule() {
+  let loaded = false;
 
-function shortDate(date) {
-
-  return date.toLocaleDateString(
-    "uk-UA",
-    {
-      day: "2-digit",
-      month: "2-digit"
+  if (db && state.key) {
+    try {
+      const { data, error } = await db.rpc('get_schedule', { p_access_token: state.key });
+      if (!error && data && data.data) {
+        state.students = data.data.students || [];
+        state.lessons = data.data.lessons || [];
+        loaded = true;
+      }
+    } catch (e) {
+      console.warn('Supabase fallback to LocalStorage');
     }
-  );
-
-}
-
-
-function addDays(date, amount) {
-
-  const result =
-    new Date(date);
-
-  result.setDate(
-    result.getDate() + amount
-  );
-
-  return result;
-
-}
-
-
-function startOfWeek(date) {
-
-  const result =
-    new Date(date);
-
-  const weekday =
-    result.getDay();
-
-  const diff =
-    weekday === 0
-      ? -6
-      : 1 - weekday;
-
-  result.setDate(
-    result.getDate() + diff
-  );
-
-  result.setHours(
-    0,
-    0,
-    0,
-    0
-  );
-
-  return result;
-
-}
-
-
-function isToday(date) {
-
-  const today =
-    new Date();
-
-  return (
-    today.getFullYear() === date.getFullYear() &&
-    today.getMonth() === date.getMonth() &&
-    today.getDate() === date.getDate()
-  );
-
-}
-
-
-/* =========================================================
-   DEFAULT UNAVAILABLE
-========================================================= */
-
-function isDefaultUnavailableTime(time) {
-
-  const minutes =
-    timeToMinutes(time);
-
-  return (
-    minutes !== null &&
-    minutes < DEFAULT_UNAVAILABLE_BEFORE
-  );
-
-}
-
-
-/* =========================================================
-   CLOUD
-========================================================= */
-
-async function createCloudSchedule() {
-
-  const {
-    data,
-    error
-  } = await supabaseClient.rpc(
-    "create_schedule"
-  );
-
-  if (error) {
-    throw error;
   }
 
-  return data;
-
-}
-
-
-async function loadCloudSchedule() {
-
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  cloudAccessToken =
-    params.get("key");
-
-
-  /*
-    Перший запуск:
-    створюємо новий розклад.
-  */
-
-  if (!cloudAccessToken) {
-
-    const result =
-      await createCloudSchedule();
-
-    cloudAccessToken =
-      result.access_token;
-
-
-    const url =
-      new URL(
-        window.location.href
-      );
-
-    url.searchParams.set(
-      "key",
-      cloudAccessToken
-    );
-
-    window.history.replaceState(
-      {},
-      "",
-      url.toString()
-    );
-
-
-    state =
-      result.data ||
-      defaultState();
-
-    return;
-
-  }
-
-
-  /*
-    Існуючий розклад.
-  */
-
-  const {
-    data,
-    error
-  } = await supabaseClient.rpc(
-    "get_schedule",
-    {
-      p_access_token:
-        cloudAccessToken
+  if (!loaded) {
+    const local = localStorage.getItem('schedule_' + state.key);
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        state.students = parsed.students || [];
+        state.lessons = parsed.lessons || [];
+      } catch (e) { console.error(e); }
     }
-  );
-
-
-  if (error) {
-    throw error;
   }
-
-
-  if (!data) {
-
-    throw new Error(
-      "Розклад за цим посиланням не знайдено."
-    );
-
-  }
-
-
-  state =
-    data.data ||
-    defaultState();
-
 }
 
+async function saveSchedule() {
+  sanitizeState();
+  const payload = { students: state.students, lessons: state.lessons };
+  localStorage.setItem('schedule_' + state.key, JSON.stringify(payload));
 
-async function saveState() {
-
-  /*
-    Локальна копія — тільки як кеш.
-  */
-
-  try {
-
-    localStorage.setItem(
-      "tutorCalendarCache",
-      JSON.stringify(state)
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "Не вдалося зберегти локальний кеш:",
-      error
-    );
-
+  if (db && state.key) {
+    try {
+      await db.rpc('save_schedule', {
+        p_access_token: state.key,
+        p_data: payload
+      });
+    } catch (e) {
+      console.warn('Saved to LocalStorage.');
+    }
   }
+}
 
+function render() {
+  updateDateDisplay();
+  updateViewButtons();
+  renderStudentsList();
+  updateStudentSelectOptions();
+  renderGrid();
+}
 
-  /*
-    Основне збереження — хмара.
-  */
+function renderNewStudentSwatches() {
+  elements.newStudentSwatches.innerHTML = '';
+  PASTEL_COLORS.forEach(color => {
+    const swatch = document.createElement('div');
+    swatch.className = `color-swatch ${color === state.selectedNewStudentColor ? 'selected' : ''}`;
+    swatch.style.backgroundColor = color;
+    swatch.onclick = () => {
+      state.selectedNewStudentColor = color;
+      renderNewStudentSwatches();
+    };
+    elements.newStudentSwatches.appendChild(swatch);
+  });
+}
 
-  if (!cloudAccessToken) {
+function updateViewButtons() {
+  [elements.viewDayBtn, elements.viewWeekBtn, elements.viewMonthBtn].forEach(btn => btn.classList.remove('active'));
+  if (state.view === 'day') elements.viewDayBtn.classList.add('active');
+  if (state.view === 'week') elements.viewWeekBtn.classList.add('active');
+  if (state.view === 'month') elements.viewMonthBtn.classList.add('active');
+}
+
+function updateDateDisplay() {
+  if (state.view === 'day') {
+    elements.currentDateDisplay.textContent = state.currentDate.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' });
+  } else if (state.view === 'week') {
+    const start = getStartOfWeek(state.currentDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    elements.currentDateDisplay.textContent = `${start.getDate()} ${start.toLocaleDateString('uk-UA', {month:'short'})} - ${end.getDate()} ${end.toLocaleDateString('uk-UA', {month:'short'})}`;
+  } else if (state.view === 'month') {
+    elements.currentDateDisplay.textContent = state.currentDate.toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' });
+  }
+}
+
+function renderStudentsList() {
+  elements.studentsList.innerHTML = '';
+  if (state.students.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'color:#64748b; font-size:0.88rem; text-align:center; padding:12px;';
+    emptyMsg.textContent = 'Список порожній. Додайте учня вище.';
+    elements.studentsList.appendChild(emptyMsg);
     return;
   }
 
+  state.students.forEach(student => {
+    const item = document.createElement('div');
+    item.className = 'student-item';
 
-  const {
-    error
-  } = await supabaseClient.rpc(
-    "save_schedule",
-    {
-      p_access_token:
-        cloudAccessToken,
+    const headerRow = document.createElement('div');
+    headerRow.className = 'student-item-header';
 
-      p_data:
-        state
-    }
-  );
-
-
-  if (error) {
-
-    console.error(
-      "Помилка збереження в хмару:",
-      error
-    );
-
-    alert(
-      "Не вдалося зберегти зміни в хмару."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   LESSONS
-========================================================= */
-
-function lessonKey(
-  date,
-  time
-) {
-
-  return `${dateKey(date)}_${time}`;
-
-}
-
-
-function getLesson(
-  date,
-  time
-) {
-
-  return (
-    state.lessons[
-      lessonKey(date, time)
-    ] || null
-  );
-
-}
-
-
-function setLesson(
-  date,
-  time,
-  lesson
-) {
-
-  state.lessons[
-    lessonKey(date, time)
-  ] =
-    lesson;
-
-}
-
-
-function deleteLesson(
-  date,
-  time
-) {
-
-  delete state.lessons[
-    lessonKey(date, time)
-  ];
-
-}
-
-
-function getStudent(
-  studentId
-) {
-
-  return state.students.find(
-    student =>
-      String(student.id) ===
-      String(studentId)
-  ) || null;
-
-}
-
-
-/* =========================================================
-   LESSONS INSIDE 15 MIN BLOCK
-========================================================= */
-
-function getLessonsInDisplayBlock(
-  date,
-  displayTime
-) {
-
-  const start =
-    timeToMinutes(displayTime);
-
-  const end =
-    start + DISPLAY_STEP_MINUTES;
-
-  const targetDate =
-    dateKey(date);
-
-
-  return Object.entries(
-    state.lessons
-  )
-  .filter(
-    ([key, lesson]) => {
-
-      if (!lesson) {
-        return false;
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = student.name || '';
+    nameInput.style.cssText = 'flex:1; padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600; font-size:0.9rem; color:#1e293b;';
+    nameInput.onchange = async (e) => {
+      const val = e.target.value.trim();
+      if (val) {
+        student.name = val;
+        await saveSchedule();
+        render();
       }
-
-      if (
-        !key.startsWith(
-          targetDate + "_"
-        )
-      ) {
-        return false;
-      }
-
-      const lessonMinutes =
-        timeToMinutes(
-          lesson.time
-        );
-
-      if (
-        lessonMinutes === null
-      ) {
-        return false;
-      }
-
-      return (
-        lessonMinutes >= start &&
-        lessonMinutes < end
-      );
-
-    }
-  )
-  .map(
-    ([key, lesson]) => ({
-      key,
-      lesson
-    })
-  )
-  .sort(
-    (a, b) => {
-
-      return (
-        timeToMinutes(
-          a.lesson.time
-        ) -
-        timeToMinutes(
-          b.lesson.time
-        )
-      );
-
-    }
-  );
-
-}
-
-
-/* =========================================================
-   VISIBLE TIMES
-========================================================= */
-
-function getVisibleTimesForDay(
-  date
-) {
-
-  if (editMode) {
-    return DISPLAY_TIME_SLOTS;
-  }
-
-
-  return DISPLAY_TIME_SLOTS.filter(
-    displayTime => {
-
-      if (
-        !isDefaultUnavailableTime(
-          displayTime
-        )
-      ) {
-
-        return true;
-
-      }
-
-
-      const lessons =
-        getLessonsInDisplayBlock(
-          date,
-          displayTime
-        );
-
-
-      return lessons.some(
-        item =>
-          item.lesson.status !==
-          "unavailable"
-      );
-
-    }
-  );
-
-}
-
-
-function getVisibleTimesForWeek(
-  monday
-) {
-
-  if (editMode) {
-    return DISPLAY_TIME_SLOTS;
-  }
-
-
-  return DISPLAY_TIME_SLOTS.filter(
-    displayTime => {
-
-      if (
-        !isDefaultUnavailableTime(
-          displayTime
-        )
-      ) {
-
-        return true;
-
-      }
-
-
-      for (
-        let i = 0;
-        i < 7;
-        i++
-      ) {
-
-        const date =
-          addDays(
-            monday,
-            i
-          );
-
-
-        const lessons =
-          getLessonsInDisplayBlock(
-            date,
-            displayTime
-          );
-
-
-        if (
-          lessons.some(
-            item =>
-              item.lesson.status !==
-              "unavailable"
-          )
-        ) {
-
-          return true;
-
-        }
-
-      }
-
-
-      return false;
-
-    }
-  );
-
-}
-
-
-/* =========================================================
-   RENDER
-========================================================= */
-
-function renderCalendar() {
-
-  const calendar =
-    document.getElementById(
-      "calendar"
-    );
-
-  calendar.innerHTML = "";
-
-
-  if (
-    currentView === "day"
-  ) {
-
-    renderDay(calendar);
-
-  } else if (
-    currentView === "week"
-  ) {
-
-    renderWeek(calendar);
-
-  } else {
-
-    renderMonth(calendar);
-
-  }
-
-}
-
-
-/* =========================================================
-   DAY
-========================================================= */
-
-function renderDay(calendar) {
-
-  const grid =
-    document.createElement("div");
-
-  grid.className =
-    "calendar-grid day-grid";
-
-
-  const timeHeader =
-    document.createElement("div");
-
-  timeHeader.className =
-    "grid-header";
-
-  timeHeader.textContent =
-    "Час";
-
-  grid.appendChild(
-    timeHeader
-  );
-
-
-  const dayHeader =
-    document.createElement("div");
-
-  dayHeader.className =
-    "grid-header";
-
-
-  if (
-    isToday(currentDate)
-  ) {
-
-    dayHeader.classList.add(
-      "today"
-    );
-
-  }
-
-
-  const weekday =
-    currentDate.toLocaleDateString(
-      "uk-UA",
-      {
-        weekday: "long"
-      }
-    );
-
-
-  const weekdayElement =
-    document.createElement("div");
-
-  weekdayElement.className =
-    "weekday";
-
-  weekdayElement.textContent =
-    weekday.charAt(0).toUpperCase() +
-    weekday.slice(1);
-
-
-  const dateElement =
-    document.createElement("div");
-
-  dateElement.className =
-    "header-date";
-
-  dateElement.textContent =
-    formatDate(
-      currentDate
-    );
-
-
-  dayHeader.appendChild(
-    weekdayElement
-  );
-
-  dayHeader.appendChild(
-    dateElement
-  );
-
-  grid.appendChild(
-    dayHeader
-  );
-
-
-  const visibleTimes =
-    getVisibleTimesForDay(
-      currentDate
-    );
-
-
-  visibleTimes.forEach(
-    displayTime => {
-
-      const timeCell =
-        document.createElement("div");
-
-      timeCell.className =
-        "time-cell";
-
-      timeCell.textContent =
-        displayTime;
-
-      grid.appendChild(
-        timeCell
-      );
-
-
-      grid.appendChild(
-        createSlot(
-          currentDate,
-          displayTime
-        )
-      );
-
-    }
-  );
-
-
-  calendar.appendChild(
-    grid
-  );
-
-}
-
-
-/* =========================================================
-   WEEK
-========================================================= */
-
-function renderWeek(calendar) {
-
-  const monday =
-    startOfWeek(
-      currentDate
-    );
-
-
-  const grid =
-    document.createElement("div");
-
-  grid.className =
-    "calendar-grid week-grid";
-
-
-  const timeHeader =
-    document.createElement("div");
-
-  timeHeader.className =
-    "grid-header";
-
-  timeHeader.textContent =
-    "Час";
-
-  grid.appendChild(
-    timeHeader
-  );
-
-
-  for (
-    let i = 0;
-    i < 7;
-    i++
-  ) {
-
-    const date =
-      addDays(
-        monday,
-        i
-      );
-
-
-    const header =
-      document.createElement("div");
-
-    header.className =
-      "grid-header";
-
-
-    if (isToday(date)) {
-
-      header.classList.add(
-        "today"
-      );
-
-    }
-
-
-    const weekday =
-      date.toLocaleDateString(
-        "uk-UA",
-        {
-          weekday: "short"
-        }
-      );
-
-
-    const weekdayElement =
-      document.createElement("div");
-
-    weekdayElement.className =
-      "weekday";
-
-    weekdayElement.textContent =
-      weekday.charAt(0).toUpperCase() +
-      weekday.slice(1);
-
-
-    const dateElement =
-      document.createElement("div");
-
-    dateElement.className =
-      "header-date";
-
-    dateElement.textContent =
-      shortDate(date);
-
-
-    header.appendChild(
-      weekdayElement
-    );
-
-    header.appendChild(
-      dateElement
-    );
-
-
-    grid.appendChild(
-      header
-    );
-
-  }
-
-
-  const visibleTimes =
-    getVisibleTimesForWeek(
-      monday
-    );
-
-
-  visibleTimes.forEach(
-    displayTime => {
-
-      const timeCell =
-        document.createElement("div");
-
-      timeCell.className =
-        "time-cell";
-
-      timeCell.textContent =
-        displayTime;
-
-      grid.appendChild(
-        timeCell
-      );
-
-
-      for (
-        let i = 0;
-        i < 7;
-        i++
-      ) {
-
-        const date =
-          addDays(
-            monday,
-            i
-          );
-
-
-        grid.appendChild(
-          createSlot(
-            date,
-            displayTime
-          )
-        );
-
-      }
-
-    }
-  );
-
-
-  calendar.appendChild(
-    grid
-  );
-
-}
-
-
-/* =========================================================
-   SLOT
-========================================================= */
-
-function createSlot(
-  date,
-  displayTime
-) {
-
-  const slot =
-    document.createElement("div");
-
-  slot.className =
-    "slot";
-
-
-  if (isToday(date)) {
-
-    slot.classList.add(
-      "today-column"
-    );
-
-  }
-
-
-  const blockStart =
-    timeToMinutes(
-      displayTime
-    );
-
-
-  const blockEnd =
-    blockStart +
-    DISPLAY_STEP_MINUTES;
-
-
-  /*
-    Усі записи всередині 15-хвилинного
-    блоку.
-  */
-
-  const lessons =
-    getLessonsInDisplayBlock(
-      date,
-      displayTime
-    );
-
-
-  /*
-    Якщо в блоці є зайняте заняття —
-    показуємо його.
-  */
-
-  const occupied =
-    lessons.filter(
-      item =>
-        item.lesson.status ===
-        "occupied"
-    );
-
-
-  if (
-    occupied.length > 0
-  ) {
-
-    occupied.forEach(
-      item => {
-
-        renderLesson(
-          slot,
-          date,
-          displayTime,
-          item.lesson,
-          item.key
-        );
-
-      }
-    );
-
-
-    addSlotEvents(
-      slot,
-      date,
-      displayTime
-    );
-
-
-    return slot;
-
-  }
-
-
-  /*
-    Недоступний блок.
-  */
-
-  const unavailable =
-    lessons.some(
-      item =>
-        item.lesson.status ===
-        "unavailable"
-    );
-
-
-  if (
-    unavailable ||
-    (
-      lessons.length === 0 &&
-      isDefaultUnavailableTime(
-        displayTime
-      )
-    )
-  ) {
-
-    if (editMode) {
-
-      slot.classList.add(
-        "unavailable"
-      );
-
-      slot.textContent =
-        "* Недоступно";
-
-      addSlotEvents(
-        slot,
-        date,
-        displayTime
-      );
-
-    }
-
-    return slot;
-
-  }
-
-
-  /*
-    Вільний.
-  */
-
-  slot.classList.add(
-    "free"
-  );
-
-  addSlotEvents(
-    slot,
-    date,
-    displayTime
-  );
-
-
-  return slot;
-
-}
-
-
-/* =========================================================
-   EVENTS
-========================================================= */
-
-function addSlotEvents(
-  slot,
-  date,
-  displayTime
-) {
-
-  slot.addEventListener(
-    "click",
-    event => {
-
-      if (justDropped) {
-
-        justDropped = false;
-
-        return;
-
-      }
-
-
-      if (
-        event.target.closest(
-          ".lesson"
-        )
-      ) {
-
-        return;
-
-      }
-
-
-      openLessonModal(
-        date,
-        displayTime
-      );
-
-    }
-  );
-
-
-  slot.addEventListener(
-    "dragover",
-    event => {
-
-      if (!draggedLesson) {
-        return;
-      }
-
-      event.preventDefault();
-
-      event.dataTransfer.dropEffect =
-        "move";
-
-      slot.classList.add(
-        "drop-target"
-      );
-
-    }
-  );
-
-
-  slot.addEventListener(
-    "dragleave",
-    () => {
-
-      slot.classList.remove(
-        "drop-target"
-      );
-
-    }
-  );
-
-
-  slot.addEventListener(
-    "drop",
-    event => {
-
-      event.preventDefault();
-
-      event.stopPropagation();
-
-      slot.classList.remove(
-        "drop-target"
-      );
-
-
-      let source =
-        draggedLesson;
-
-
-      if (!source) {
-
-        const raw =
-          event.dataTransfer.getData(
-            "text/plain"
-          );
-
-
-        if (raw) {
-
-          const parts =
-            raw.split("|");
-
-          if (
-            parts.length === 2
-          ) {
-
-            source = {
-              dateKey: parts[0],
-              time: parts[1]
-            };
-
-          }
-
-        }
-
-      }
-
-
-      if (!source) {
-        return;
-      }
-
-
-      handleDrop(
-        source,
-        date,
-        displayTime
-      );
-
-
-      draggedLesson =
-        null;
-
-      justDropped =
-        true;
-
-    }
-  );
-
-}
-
-
-/* =========================================================
-   LESSON
-========================================================= */
-
-function renderLesson(
-  slot,
-  date,
-  displayTime,
-  lesson
-) {
-
-  const student =
-    getStudent(
-      lesson.studentId
-    );
-
-
-  if (!student) {
-    return;
-  }
-
-
-  const element =
-    document.createElement(
-      "div"
-    );
-
-
-  element.className =
-    "lesson " +
-    (
-      student.color ||
-      lesson.studentColor ||
-      "blue"
-    );
-
-
-  element.draggable =
-    true;
-
-
-  const name =
-    document.createElement(
-      "span"
-    );
-
-  name.className =
-    "lesson-name";
-
-
-  name.textContent =
-    `${lesson.time || displayTime} · ${student.name}`;
-
-
-  element.appendChild(
-    name
-  );
-
-
-  if (lesson.paid) {
-
-    const paid =
-      document.createElement(
-        "span"
-      );
-
-    paid.className =
-      "lesson-paid";
-
-    paid.textContent =
-      "$";
-
-    element.appendChild(
-      paid
-    );
-
-  }
-
-
-  if (
-    lesson.lessonState ===
-    "completed"
-  ) {
-
-    const completed =
-      document.createElement(
-        "span"
-      );
-
-    completed.className =
-      "lesson-completed";
-
-    completed.textContent =
-      "✓";
-
-    element.appendChild(
-      completed
-    );
-
-  }
-
-
-  element.addEventListener(
-    "click",
-    event => {
-
-      event.stopPropagation();
-
-      if (justDropped) {
-
-        justDropped = false;
-
-        return;
-
-      }
-
-
-      openLessonModal(
-        date,
-        lesson.time || displayTime
-      );
-
-    }
-  );
-
-
-  element.addEventListener(
-    "dragstart",
-    event => {
-
-      event.stopPropagation();
-
-      draggedLesson = {
-
-        dateKey:
-          dateKey(date),
-
-        time:
-          lesson.time ||
-          displayTime
-
-      };
-
-
-      event.dataTransfer.effectAllowed =
-        "move";
-
-
-      event.dataTransfer.setData(
-        "text/plain",
-        `${dateKey(date)}|${lesson.time || displayTime}`
-      );
-
-    }
-  );
-
-
-  element.addEventListener(
-    "dragend",
-    () => {
-
-      draggedLesson =
-        null;
-
-
-      document
-        .querySelectorAll(
-          ".drop-target"
-        )
-        .forEach(
-          item => {
-
-            item.classList.remove(
-              "drop-target"
-            );
-
-          }
-        );
-
-    }
-  );
-
-
-  slot.appendChild(
-    element
-  );
-
-}
-
-
-/* =========================================================
-   DROP
-========================================================= */
-
-async function handleDrop(
-  source,
-  targetDate,
-  targetDisplayTime
-) {
-
-  const sourceDate =
-    parseDate(
-      source.dateKey
-    );
-
-
-  const sourceResult =
-    state.lessons[
-      lessonKey(
-        sourceDate,
-        source.time
-      )
-    ];
-
-
-  if (!sourceResult) {
-    return;
-  }
-
-
-  const targetStart =
-    timeToMinutes(
-      targetDisplayTime
-    );
-
-
-  const targetLessons =
-    getLessonsInDisplayBlock(
-      targetDate,
-      targetDisplayTime
-    );
-
-
-  const targetOccupied =
-    targetLessons.find(
-      item =>
-        item.lesson.status ===
-        "occupied"
-    );
-
-
-  /*
-    Забороняємо перетягування
-    у недоступний час.
-  */
-
-  if (
-    targetStart <
-      DEFAULT_UNAVAILABLE_BEFORE &&
-    !targetOccupied &&
-    !targetLessons.some(
-      item =>
-        item.lesson.status !==
-        "unavailable"
-    )
-  ) {
-
-    if (!editMode) {
-
-      alert(
-        "Цей час недоступний."
-      );
-
-      return;
-
-    }
-
-  }
-
-
-  /*
-    Якщо в цій 15-хвилинній комірці
-    вже є заняття — запитуємо swap.
-  */
-
-  if (targetOccupied) {
-
-    if (
-      targetOccupied.key ===
-      lessonKey(
-        sourceDate,
-        source.time
-      )
-    ) {
-
-      return;
-
-    }
-
-
-    const shouldSwap =
-      confirm(
-        "Цей час уже зайнятий. Поміняти заняття місцями?"
-      );
-
-
-    if (!shouldSwap) {
-      return;
-    }
-
-
-    const targetLesson =
-      targetOccupied.lesson;
-
-
-    const newSource =
-      {
-        ...sourceResult,
-        time:
-          targetDisplayTime,
-        date:
-          dateKey(targetDate)
-      };
-
-
-    const newTarget =
-      {
-        ...targetLesson,
-        time:
-          source.time,
-        date:
-          dateKey(sourceDate)
-      };
-
-
-    delete state.lessons[
-      lessonKey(
-        sourceDate,
-        source.time
-      )
-    ];
-
-
-    delete state.lessons[
-      targetOccupied.key
-    ];
-
-
-    setLesson(
-      targetDate,
-      targetDisplayTime,
-      newSource
-    );
-
-
-    setLesson(
-      sourceDate,
-      source.time,
-      newTarget
-    );
-
-
-    await saveState();
-
-    renderCalendar();
-
-    return;
-
-  }
-
-
-  /*
-    Звичайне переміщення.
-  */
-
-  delete state.lessons[
-    lessonKey(
-      sourceDate,
-      source.time
-    )
-  ];
-
-
-  const movedLesson =
-    {
-      ...sourceResult,
-      time:
-        targetDisplayTime,
-      date:
-        dateKey(targetDate)
     };
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'danger';
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = 'Видалити';
+    deleteBtn.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (confirm(`Видалити учня "${student.name}" та всі його уроки?`)) {
+        const studentIdStr = String(student.id);
+        state.students = state.students.filter(s => String(s.id) !== studentIdStr);
+        state.lessons = state.lessons.filter(l => String(l.studentId) !== studentIdStr);
+        await saveSchedule();
+        render();
+      }
+    };
 
-  setLesson(
-    targetDate,
-    targetDisplayTime,
-    movedLesson
-  );
+    headerRow.appendChild(nameInput);
+    headerRow.appendChild(deleteBtn);
 
+    const swatchesDiv = document.createElement('div');
+    swatchesDiv.className = 'student-color-swatches';
+    
+    PASTEL_COLORS.forEach(color => {
+      const dot = document.createElement('div');
+      dot.className = `swatch-dot ${student.color === color ? 'active' : ''}`;
+      dot.style.backgroundColor = color;
+      dot.onclick = async () => {
+        student.color = color;
+        await saveSchedule();
+        render();
+      };
+      swatchesDiv.appendChild(dot);
+    });
 
-  await saveState();
+    item.appendChild(headerRow);
+    item.appendChild(swatchesDiv);
 
-  renderCalendar();
-
+    elements.studentsList.appendChild(item);
+  });
 }
 
+function updateStudentSelectOptions() {
+  elements.lessonStudentSelect.innerHTML = '';
+  state.students.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    opt.textContent = s.name;
+    elements.lessonStudentSelect.appendChild(opt);
+  });
+}
 
-/* =========================================================
-   MODAL
-========================================================= */
+function getStartOfWeek(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(date.setDate(diff));
+}
 
-function fillStudentSelect(
-  selectedId
-) {
+function formatDateISO(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
-  const select =
-    document.getElementById(
-      "studentSelect"
-    );
+function isToday(date) {
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear();
+}
 
+function createDayHeaderElement(date) {
+  const dayIdx = (date.getDay() + 6) % 7;
+  const header = document.createElement('div');
+  header.className = `day-header ${isToday(date) ? 'today' : ''}`;
+  
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'day-header-name';
+  nameSpan.textContent = DAY_NAMES_SHORT[dayIdx];
 
-  select.innerHTML = "";
+  const dateSpan = document.createElement('span');
+  dateSpan.className = 'day-header-date';
+  dateSpan.textContent = `${date.getDate()} ${MONTH_NAMES_SHORT[date.getMonth()]}`;
 
+  header.appendChild(nameSpan);
+  header.appendChild(dateSpan);
+  return header;
+}
 
-  const first =
-    document.createElement(
-      "option"
-    );
+function renderGrid() {
+  elements.calendarGrid.innerHTML = '';
 
-  first.value = "";
+  if (state.view === 'month') {
+    renderMonthView();
+    return;
+  }
 
-  first.textContent =
-    "Оберіть учня";
+  const isMobile = window.innerWidth <= 640;
 
+  if (state.view === 'week' && isMobile) {
+    renderWeekViewMobile();
+    return;
+  }
 
-  select.appendChild(
-    first
-  );
+  const isWeek = state.view === 'week';
+  elements.calendarGrid.className = `calendar-grid ${isWeek ? 'grid-week-desktop' : 'grid-day'}`;
 
+  const daysCount = isWeek ? 7 : 1;
+  const startOfWeek = getStartOfWeek(state.currentDate);
+  const daysDates = [];
 
-  state.students.forEach(
-    student => {
+  elements.calendarGrid.appendChild(document.createElement('div'));
 
-      const option =
-        document.createElement(
-          "option"
-        );
+  for (let i = 0; i < daysCount; i++) {
+    const date = isWeek ? new Date(startOfWeek) : new Date(state.currentDate);
+    if (isWeek) date.setDate(startOfWeek.getDate() + i);
+    daysDates.push(date);
 
-      option.value =
-        student.id;
+    const header = createDayHeaderElement(date);
+    elements.calendarGrid.appendChild(header);
+  }
 
-      option.textContent =
-        student.name;
+  renderTimeSlotsForDays(elements.calendarGrid, daysDates);
+}
 
+// Повідомлення для тижневого режиму на мобільних пристроях (блок по 2 дні)
+function renderWeekViewMobile() {
+  elements.calendarGrid.className = 'calendar-grid';
 
-      select.appendChild(
-        option
-      );
+  const startOfWeek = getStartOfWeek(state.currentDate);
+  const daysDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate() + i);
+    daysDates.push(d);
+  }
 
+  // Групуємо дні по 2 (Пн-Вт, Ср-Чт, Пт-Сб, Нд)
+  const dayChunks = [];
+  for (let i = 0; i < daysDates.length; i += 2) {
+    dayChunks.push(daysDates.slice(i, i + 2));
+  }
+
+  dayChunks.forEach(chunk => {
+    const block = document.createElement('div');
+    block.className = `calendar-grid grid-week-mobile-block ${chunk.length === 1 ? 'single-day' : ''}`;
+
+    block.appendChild(document.createElement('div'));
+
+    chunk.forEach(date => {
+      const header = createDayHeaderElement(date);
+      block.appendChild(header);
+    });
+
+    renderTimeSlotsForDays(block, chunk);
+    elements.calendarGrid.appendChild(block);
+  });
+}
+
+function renderTimeSlotsForDays(container, daysDates) {
+  const baseStart = state.isEditMode ? 9 : 17;
+  const baseEnd = 21;
+
+  const hoursSet = new Set();
+  for (let h = baseStart; h <= baseEnd; h++) {
+    hoursSet.add(h);
+  }
+
+  daysDates.forEach(date => {
+    const dateISO = formatDateISO(date);
+    state.lessons.forEach(l => {
+      if (l.date === dateISO) {
+        const lHour = parseInt((l.time || '00:00').split(':')[0], 10);
+        if (!isNaN(lHour)) {
+          hoursSet.add(lHour);
+        }
+      }
+    });
+  });
+
+  const sortedHours = Array.from(hoursSet).sort((a, b) => a - b);
+
+  sortedHours.forEach(h => {
+    const timeStr = `${String(h).padStart(2, '0')}:00`;
+
+    const timeLabel = document.createElement('div');
+    timeLabel.className = 'time-slot time-label';
+    timeLabel.textContent = timeStr;
+    container.appendChild(timeLabel);
+
+    daysDates.forEach(date => {
+      const dateISO = formatDateISO(date);
+      const slot = document.createElement('div');
+      slot.className = 'time-slot';
+
+      const slotLessons = state.lessons.filter(l => {
+        if (l.date !== dateISO) return false;
+        const lHour = parseInt((l.time || '00:00').split(':')[0], 10);
+        return lHour === h;
+      });
+
+      if (slotLessons.length > 0) {
+        slotLessons.forEach(lesson => {
+          const card = createLessonCard(lesson);
+          slot.appendChild(card);
+        });
+      } else {
+        const isBaseFreeHour = h >= baseStart && h <= baseEnd;
+
+        const freeSlot = document.createElement('div');
+        freeSlot.className = `slot-free ${!isBaseFreeHour ? 'out-of-range' : ''}`;
+        freeSlot.textContent = isBaseFreeHour ? 'Вільно' : '';
+
+        freeSlot.ondragover = (e) => { e.preventDefault(); freeSlot.classList.add('drag-over'); };
+        freeSlot.ondragleave = () => freeSlot.classList.remove('drag-over');
+        freeSlot.ondrop = async (e) => {
+          e.preventDefault();
+          freeSlot.classList.remove('drag-over');
+          const lessonId = e.dataTransfer.getData('text/plain');
+          await moveLesson(lessonId, dateISO, timeStr);
+        };
+
+        slot.appendChild(freeSlot);
+      }
+
+      container.appendChild(slot);
+    });
+  });
+}
+
+function createLessonCard(lesson) {
+  const student = state.students.find(s => String(s.id) === String(lesson.studentId));
+  const card = document.createElement('div');
+  card.className = 'lesson-card';
+  card.style.backgroundColor = student ? (student.color || PASTEL_COLORS[0]) : '#f5f5f4';
+  card.style.color = '#1e293b';
+  card.draggable = true;
+
+  const isPaid = lesson.paid === true || lesson.paid === 'true';
+  const isCompleted = lesson.status === 'completed';
+
+  const topRow = document.createElement('div');
+  topRow.style.cssText = 'display:flex; justify-content:space-between; align-items:flex-start; gap:4px;';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.style.cssText = 'font-weight:700; font-size:0.83rem; color:#1e293b; line-height:1.2; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+  titleSpan.textContent = `${lesson.time || ''} ${student ? student.name : 'Учень'}`;
+
+  const deleteBtn = document.createElement('span');
+  deleteBtn.title = 'Видалити урок';
+  deleteBtn.style.cssText = 'cursor:pointer; font-size:1.2rem; line-height:0.7; color:#64748b; font-weight:bold; padding:2px;';
+  deleteBtn.innerHTML = '&times;';
+  deleteBtn.onclick = async (e) => {
+    e.stopPropagation();
+    if (confirm('Видалити цей урок?')) {
+      state.lessons = state.lessons.filter(l => String(l.id) !== String(lesson.id));
+      await saveSchedule();
+      render();
     }
-  );
-
-
-  select.value =
-    selectedId || "";
-
-}
-
-
-function openLessonModal(
-  date,
-  time
-) {
-
-  activeSlot = {
-    date:
-      new Date(date),
-    time
   };
 
+  topRow.appendChild(titleSpan);
+  topRow.appendChild(deleteBtn);
 
-  const modal =
-    document.getElementById(
-      "lessonModal"
-    );
+  const badgesRow = document.createElement('div');
+  badgesRow.className = 'lesson-badges';
 
+  const paidBadge = document.createElement('span');
+  paidBadge.className = 'badge';
+  paidBadge.style.backgroundColor = isPaid ? '#dcfce7' : '#fee2e2';
+  paidBadge.style.color = isPaid ? '#15803d' : '#991b1b';
+  paidBadge.textContent = isPaid ? 'Оплачено' : 'Не опл.';
 
-  const exactLesson =
-    getLesson(
-      date,
-      time
-    );
+  const statusBadge = document.createElement('span');
+  statusBadge.className = 'badge';
+  statusBadge.style.backgroundColor = isCompleted ? '#e2e8f0' : '#dbeafe';
+  statusBadge.style.color = isCompleted ? '#334155' : '#1d4ed8';
+  statusBadge.textContent = isCompleted ? 'Відбувся' : 'Заплан.';
 
+  badgesRow.appendChild(paidBadge);
+  badgesRow.appendChild(statusBadge);
 
-  const blockLessons =
-    getLessonsInDisplayBlock(
-      date,
-      time
-    );
+  card.appendChild(topRow);
+  card.appendChild(badgesRow);
 
+  card.onclick = () => openEditLessonModal(lesson.id);
+  card.ondragstart = (e) => {
+    e.dataTransfer.setData('text/plain', String(lesson.id));
+  };
 
-  let lesson =
-    exactLesson;
-
-
-  if (!lesson) {
-
-    const occupied =
-      blockLessons.find(
-        item =>
-          item.lesson.status ===
-          "occupied"
-      );
-
-
-    if (occupied) {
-      lesson =
-        occupied.lesson;
-    }
-
-  }
-
-
-  document.getElementById(
-    "lessonDate"
-  ).value =
-    formatDate(date);
-
-
-  document.getElementById(
-    "lessonTime"
-  ).value =
-    lesson &&
-    lesson.time
-      ? lesson.time
-      : time;
-
-
-  document.getElementById(
-    "slotStatus"
-  ).value =
-    lesson &&
-    lesson.status
-      ? lesson.status
-      : (
-        isDefaultUnavailableTime(
-          time
-        )
-          ? "unavailable"
-          : "free"
-      );
-
-
-  document.getElementById(
-    "studentSelect"
-  );
-
-
-  fillStudentSelect(
-    lesson
-      ? lesson.studentId
-      : ""
-  );
-
-
-  document.getElementById(
-    "paidCheckbox"
-  ).checked =
-    !!(
-      lesson &&
-      lesson.paid
-    );
-
-
-  document.getElementById(
-    "lessonState"
-  ).value =
-    lesson &&
-    lesson.lessonState
-      ? lesson.lessonState
-      : "planned";
-
-
-  selectStudentColor(
-    lesson &&
-    lesson.studentColor
-      ? lesson.studentColor
-      : "blue"
-  );
-
-
-  updateModalVisibility();
-
-  modal.classList.remove(
-    "hidden"
-  );
-
+  return card;
 }
 
+function renderMonthView() {
+  elements.calendarGrid.className = 'calendar-grid grid-month';
 
-/* =========================================================
-   COLORS
-========================================================= */
+  const year = state.currentDate.getFullYear();
+  const month = state.currentDate.getMonth();
 
-function selectStudentColor(
-  color
-) {
+  const firstDay = new Date(year, month, 1);
+  const startDayOfWeek = (firstDay.getDay() + 6) % 7;
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const prevMonthLastDay = new Date(year, month, 0).getDate();
 
-  document
-    .querySelectorAll(
-      ".color-option"
-    )
-    .forEach(
-      button => {
+  DAY_NAMES_SHORT.forEach(name => {
+    const h = document.createElement('div');
+    h.className = 'day-header';
+    h.style.cssText = 'font-weight:700; font-size:0.85rem;';
+    h.textContent = name;
+    elements.calendarGrid.appendChild(h);
+  });
 
-        button.classList.toggle(
-          "selected",
-          button.dataset.color === color
-        );
+  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+    const cell = document.createElement('div');
+    cell.className = 'month-cell padding-cell';
+    cell.innerHTML = `<div class="month-day-num muted">${prevMonthLastDay - i}</div>`;
+    elements.calendarGrid.appendChild(cell);
+  }
 
+  for (let day = 1; day <= totalDays; day++) {
+    const d = new Date(year, month, day);
+    const dateISO = formatDateISO(d);
+    const isCurrentToday = isToday(d);
+
+    const cell = document.createElement('div');
+    cell.className = `month-cell ${isCurrentToday ? 'today' : ''}`;
+
+    // Дати в Місяці — ВІДЦЕНТРОВАНІ та ЖИРНІ
+    const numDiv = document.createElement('div');
+    numDiv.className = `month-day-num ${isCurrentToday ? 'today-num' : ''}`;
+    numDiv.textContent = day;
+    cell.appendChild(numDiv);
+
+    const dayLessons = state.lessons.filter(l => l.date === dateISO);
+    dayLessons.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    dayLessons.forEach(l => {
+      const s = state.students.find(st => String(st.id) === String(l.studentId));
+      const badge = document.createElement('div');
+      badge.className = 'month-lesson-badge';
+      badge.style.backgroundColor = s ? (s.color || PASTEL_COLORS[0]) : '#f5f5f4';
+
+      const isPaid = l.paid === true || l.paid === 'true';
+      const isCompleted = l.status === 'completed';
+
+      let indicatorsHTML = '';
+      if (isPaid) {
+        indicatorsHTML += '<span style="color:#15803d; font-weight:800; font-size:0.85rem;" title="Оплачено">$</span>';
       }
-    );
-
-}
-
-
-function getSelectedStudentColor() {
-
-  const selected =
-    document.querySelector(
-      ".color-option.selected"
-    );
-
-
-  return selected
-    ? selected.dataset.color
-    : "blue";
-
-}
-
-
-/* =========================================================
-   MODAL VISIBILITY
-========================================================= */
-
-function updateModalVisibility() {
-
-  const status =
-    document.getElementById(
-      "slotStatus"
-    ).value;
-
-
-  const studentGroup =
-    document.getElementById(
-      "studentGroup"
-    );
-
-
-  const colorGroup =
-    document.getElementById(
-      "studentColorGroup"
-    );
-
-
-  const paidGroup =
-    document.getElementById(
-      "paidCheckbox"
-    ).closest(
-      ".form-group"
-    );
-
-
-  const stateGroup =
-    document.getElementById(
-      "lessonState"
-    ).closest(
-      ".form-group"
-    );
-
-
-  if (
-    status === "occupied"
-  ) {
-
-    studentGroup.style.display =
-      "";
-
-    colorGroup.style.display =
-      "";
-
-    paidGroup.style.display =
-      "";
-
-    stateGroup.style.display =
-      "";
-
-  } else {
-
-    studentGroup.style.display =
-      "none";
-
-    colorGroup.style.display =
-      "none";
-
-    paidGroup.style.display =
-      "none";
-
-    stateGroup.style.display =
-      "none";
-
-  }
-
-}
-
-
-/* =========================================================
-   SAVE
-========================================================= */
-
-async function saveLesson() {
-
-  if (!activeSlot) {
-    return;
-  }
-
-
-  const date =
-    activeSlot.date;
-
-
-  const oldTime =
-    activeSlot.time;
-
-
-  const selectedTime =
-    document.getElementById(
-      "lessonTime"
-    ).value;
-
-
-  if (!selectedTime) {
-
-    alert(
-      "Оберіть час."
-    );
-
-    return;
-
-  }
-
-
-  const status =
-    document.getElementById(
-      "slotStatus"
-    ).value;
-
-
-  const studentId =
-    document.getElementById(
-      "studentSelect"
-    ).value;
-
-
-  if (
-    status === "occupied" &&
-    !studentId
-  ) {
-
-    alert(
-      "Оберіть учня."
-    );
-
-    return;
-
-  }
-
-
-  /*
-    Видаляємо старий запис.
-  */
-
-  deleteLesson(
-    date,
-    oldTime
-  );
-
-
-  /*
-    unavailable
-  */
-
-  if (
-    status === "unavailable"
-  ) {
-
-    setLesson(
-      date,
-      selectedTime,
-      {
-        status:
-          "unavailable",
-
-        time:
-          selectedTime,
-
-        date:
-          dateKey(date)
+      if (isCompleted) {
+        indicatorsHTML += '<span style="color:#16a34a; font-weight:800; font-size:0.85rem;" title="Відбувся">✓</span>';
       }
-    );
 
+      const textSpan = document.createElement('span');
+      textSpan.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#1e293b; font-weight:600;';
+      textSpan.innerHTML = `<strong>${l.time || ''}</strong> ${s ? s.name : ''}`;
+
+      const iconSpan = document.createElement('span');
+      iconSpan.style.cssText = 'display:flex; align-items:center; gap:2px; flex-shrink:0;';
+      iconSpan.innerHTML = indicatorsHTML;
+
+      badge.appendChild(textSpan);
+      badge.appendChild(iconSpan);
+
+      badge.onclick = (e) => {
+        e.stopPropagation();
+        openEditLessonModal(l.id);
+      };
+
+      cell.appendChild(badge);
+    });
+
+    elements.calendarGrid.appendChild(cell);
   }
 
-
-  /*
-    free
-  */
-
-  else if (
-    status === "free"
-  ) {
-
-    setLesson(
-      date,
-      selectedTime,
-      {
-        status:
-          "free",
-
-        time:
-          selectedTime,
-
-        date:
-          dateKey(date)
-      }
-    );
-
+  const totalCells = startDayOfWeek + totalDays;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'month-cell padding-cell';
+    cell.innerHTML = `<div class="month-day-num muted">${i}</div>`;
+    elements.calendarGrid.appendChild(cell);
   }
+}
 
+async function moveLesson(lessonId, newDate, newTime) {
+  const lesson = state.lessons.find(l => String(l.id) === String(lessonId));
+  if (lesson) {
+    lesson.date = newDate;
+    lesson.time = newTime;
+    await saveSchedule();
+    render();
+  }
+}
 
-  /*
-    occupied
-  */
+function openEditLessonModal(lessonId) {
+  const lesson = state.lessons.find(l => String(l.id) === String(lessonId));
+  if (!lesson) return;
 
-  else {
+  state.editingLessonId = String(lessonId);
+  elements.lessonModalTitle.textContent = 'Редагувати урок';
 
-    const student =
-      getStudent(
-        studentId
-      );
+  updateStudentSelectOptions();
+  elements.lessonStudentSelect.value = String(lesson.studentId);
+  elements.lessonDateInput.value = lesson.date;
 
+  const parts = (lesson.time || '18:00').split(':');
+  elements.lessonHourSelect.value = String(parts[0]).padStart(2, '0');
+  elements.lessonMinuteSelect.value = String(parts[1]).padStart(2, '0');
 
-    if (!student) {
+  elements.lessonPaidSelect.value = String(lesson.paid);
+  elements.lessonStatusSelect.value = lesson.status || 'planned';
+
+  elements.repeatGroup.style.display = 'none';
+  elements.lessonModal.classList.remove('hidden');
+}
+
+function setupEventListeners() {
+  // Налаштування
+  elements.settingsBtn.onclick = () => elements.settingsModal.classList.remove('hidden');
+  elements.closeSettingsModalBtn.onclick = () => elements.settingsModal.classList.add('hidden');
+
+  elements.editModeCheckbox.onchange = (e) => {
+    state.isEditMode = e.target.checked;
+    render();
+  };
+
+  elements.modalAddLessonBtn.onclick = () => {
+    elements.settingsModal.classList.add('hidden');
+    openAddLessonModal();
+  };
+
+  elements.modalManageStudentsBtn.onclick = () => {
+    elements.settingsModal.classList.add('hidden');
+    elements.studentsModal.classList.remove('hidden');
+  };
+
+  elements.closeStudentsModalBtn.onclick = () => elements.studentsModal.classList.add('hidden');
+
+  elements.addStudentBtn.onclick = async () => {
+    const name = elements.newStudentName.value.trim();
+    if (!name) {
+      alert("Будь ласка, введіть ім'я учня!");
       return;
     }
 
-
-    const selectedColor =
-      getSelectedStudentColor();
-
-
-    student.color =
-      selectedColor;
-
-
-    setLesson(
-      date,
-      selectedTime,
-      {
-
-        status:
-          "occupied",
-
-        studentId:
-          studentId,
-
-        studentColor:
-          selectedColor,
-
-        paid:
-          document.getElementById(
-            "paidCheckbox"
-          ).checked,
-
-        lessonState:
-          document.getElementById(
-            "lessonState"
-          ).value,
-
-        time:
-          selectedTime,
-
-        date:
-          dateKey(date)
-
-      }
-    );
-
-  }
-
-
-  await saveState();
-
-  closeLessonModal();
-
-  renderCalendar();
-
-}
-
-
-/* =========================================================
-   DELETE
-========================================================= */
-
-async function deleteActiveLesson() {
-
-  if (!activeSlot) {
-    return;
-  }
-
-
-  deleteLesson(
-    activeSlot.date,
-    activeSlot.time
-  );
-
-
-  await saveState();
-
-  closeLessonModal();
-
-  renderCalendar();
-
-}
-
-
-/* =========================================================
-   MODAL CLOSE
-========================================================= */
-
-function closeLessonModal() {
-
-  document
-    .getElementById(
-      "lessonModal"
-    )
-    .classList.add(
-      "hidden"
-    );
-
-
-  activeSlot =
-    null;
-
-}
-
-
-/* =========================================================
-   NAVIGATION
-========================================================= */
-
-function updateCalendarTitle() {
-
-  const title =
-    document.getElementById(
-      "calendarTitle"
-    );
-
-
-  if (
-    currentView === "day"
-  ) {
-
-    title.textContent =
-      formatDate(
-        currentDate
-      );
-
-    return;
-
-  }
-
-
-  if (
-    currentView === "week"
-  ) {
-
-    const monday =
-      startOfWeek(
-        currentDate
-      );
-
-
-    const sunday =
-      addDays(
-        monday,
-        6
-      );
-
-
-    title.textContent =
-      `${shortDate(monday)} – ${shortDate(sunday)}`;
-
-    return;
-
-  }
-
-
-  const month =
-    currentDate.toLocaleDateString(
-      "uk-UA",
-      {
-        month: "long",
-        year: "numeric"
-      }
-    );
-
-
-  title.textContent =
-    month.charAt(0).toUpperCase() +
-    month.slice(1);
-
-}
-
-
-function goPrevious() {
-
-  if (
-    currentView === "day"
-  ) {
-
-    currentDate =
-      addDays(
-        currentDate,
-        -1
-      );
-
-  } else if (
-    currentView === "week"
-  ) {
-
-    currentDate =
-      addDays(
-        currentDate,
-        -7
-      );
-
-  } else {
-
-    currentDate =
-      new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() - 1,
-        1
-      );
-
-  }
-
-
-  updateCalendarTitle();
-
-  renderCalendar();
-
-}
-
-
-function goNext() {
-
-  if (
-    currentView === "day"
-  ) {
-
-    currentDate =
-      addDays(
-        currentDate,
-        1
-      );
-
-  } else if (
-    currentView === "week"
-  ) {
-
-    currentDate =
-      addDays(
-        currentDate,
-        7
-      );
-
-  } else {
-
-    currentDate =
-      new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1,
-        1
-      );
-
-  }
-
-
-  updateCalendarTitle();
-
-  renderCalendar();
-
-}
-
-
-function goToday() {
-
-  currentDate =
-    new Date();
-
-  updateCalendarTitle();
-
-  renderCalendar();
-
-}
-
-
-/* =========================================================
-   VIEW
-========================================================= */
-
-function setView(view) {
-
-  currentView =
-    view;
-
-
-  document
-    .querySelectorAll(
-      ".view-btn"
-    )
-    .forEach(
-      button => {
-
-        button.classList.toggle(
-          "active",
-          button.dataset.view === view
-        );
-
-      }
-    );
-
-
-  updateCalendarTitle();
-
-  renderCalendar();
-
-}
-
-
-/* =========================================================
-   EDIT MODE
-========================================================= */
-
-function toggleEditMode() {
-
-  editMode =
-    !editMode;
-
-
-  const button =
-    document.getElementById(
-      "editModeBtn"
-    );
-
-
-  button.textContent =
-    editMode
-      ? "Завершити редагування"
-      : "Редагувати";
-
-
-  document.body.classList.toggle(
-    "edit-mode",
-    editMode
-  );
-
-
-  renderCalendar();
-
-}
-
-
-/* =========================================================
-   INIT
-========================================================= */
-
-/* Тимчасовий тестовий init для перевірки відображення */
-async function init() {
-  // Додаємо тестових учнів та уроки в локальний стан, якщо порожньо
-  state = {
-    students: [
-      { id: "1", name: "Іван", color: "green" },
-      { id: "2", name: "Олена", color: "blue" }
-    ],
-    lessons: {}
+    state.students.push({
+      id: Date.now().toString(),
+      name,
+      color: state.selectedNewStudentColor
+    });
+
+    elements.newStudentName.value = '';
+    await saveSchedule();
+    render();
   };
 
-  /* Навігація */
-  document.getElementById("prevBtn").addEventListener("click", goPrevious);
-  document.getElementById("nextBtn").addEventListener("click", goNext);
-  document.getElementById("todayBtn").addEventListener("click", goToday);
+  function openAddLessonModal() {
+    if (state.students.length === 0) {
+      alert('Спочатку додайте хоча б одного учня!');
+      elements.studentsModal.classList.remove('hidden');
+      return;
+    }
+    state.editingLessonId = null;
+    elements.lessonModalTitle.textContent = 'Додати урок';
+    updateStudentSelectOptions();
+    elements.lessonDateInput.value = formatDateISO(state.currentDate);
+    elements.lessonHourSelect.value = '18';
+    elements.lessonMinuteSelect.value = '00';
+    elements.lessonPaidSelect.value = 'false';
+    elements.lessonStatusSelect.value = 'planned';
+    elements.repeatGroup.style.display = 'block';
+    elements.lessonModal.classList.remove('hidden');
+  }
 
-  /* Режими */
-  document.querySelectorAll(".view-btn").forEach(button => {
-    button.addEventListener("click", () => setView(button.dataset.view));
-  });
+  elements.closeLessonModalBtn.onclick = () => elements.lessonModal.classList.add('hidden');
 
-  /* Редагування */
-  document.getElementById("editModeBtn").addEventListener("click", toggleEditMode);
+  elements.saveLessonBtn.onclick = async () => {
+    const studentId = String(elements.lessonStudentSelect.value);
+    const baseDateStr = elements.lessonDateInput.value;
+    const hour = elements.lessonHourSelect.value;
+    const minute = elements.lessonMinuteSelect.value;
+    const paid = elements.lessonPaidSelect.value === 'true';
+    const status = elements.lessonStatusSelect.value;
 
-  /* Модальне вікно */
-  document.getElementById("closeModalBtn").addEventListener("click", closeLessonModal);
-  document.getElementById("cancelModalBtn").addEventListener("click", closeLessonModal);
-  document.getElementById("saveLessonBtn").addEventListener("click", saveLesson);
-  document.getElementById("deleteLessonBtn").addEventListener("click", deleteActiveLesson);
-  document.getElementById("slotStatus").addEventListener("change", updateModalVisibility);
+    if (!studentId || !baseDateStr) {
+      alert('Заповніть усі поля!');
+      return;
+    }
 
-  /* Кольори */
-  document.querySelectorAll(".color-option").forEach(button => {
-    button.addEventListener("click", () => selectStudentColor(button.dataset.color));
-  });
+    const time = `${hour}:${minute}`;
 
-  document.querySelector(".modal-overlay").addEventListener("click", closeLessonModal);
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeLessonModal();
-  });
+    if (state.editingLessonId) {
+      const lesson = state.lessons.find(l => String(l.id) === String(state.editingLessonId));
+      if (lesson) {
+        lesson.studentId = studentId;
+        lesson.date = baseDateStr;
+        lesson.time = time;
+        lesson.paid = paid;
+        lesson.status = status;
+      }
+    } else {
+      const repeatCount = parseInt(elements.lessonRepeatSelect.value, 10) || 1;
+      const [y, m, d] = baseDateStr.split('-').map(Number);
 
-  updateCalendarTitle();
-  renderCalendar();
-}
+      for (let i = 0; i < repeatCount; i++) {
+        const targetDate = new Date(y, m - 1, d + (i * 7));
+        state.lessons.push({
+          id: `${Date.now()}_${i}`,
+          studentId,
+          date: formatDateISO(targetDate),
+          time,
+          paid,
+          status
+        });
+      }
+    }
 
-document.addEventListener("DOMContentLoaded", init);
+    await saveSchedule();
+    elements.lessonModal.classList.add('hidden');
+    render();
+  };
 
+  elements.viewDayBtn.onclick = () => { state.view = 'day'; render(); };
+  elements.viewWeekBtn.onclick = () => { state.view = 'week'; render(); };
+  elements.viewMonthBtn.onclick = () => { state.view = 'month'; render(); };
 
-document.addEventListener(
-  "DOMContentLoaded",
-  init
-);
-function renderMonth(calendar) {
-  calendar.innerHTML = "<div style='padding:30px;text-align:center'>Режим перегляду місяця знаходиться у розробці</div>";
+  elements.todayBtn.onclick = () => { state.currentDate = new Date(); render(); };
+  
+  elements.prevBtn.onclick = () => {
+    if (state.view === 'day') {
+      state.currentDate.setDate(state.currentDate.getDate() - 1);
+    } else if (state.view === 'week') {
+      state.currentDate.setDate(state.currentDate.getDate() - 7);
+    } else if (state.view === 'month') {
+      const y = state.currentDate.getFullYear();
+      const m = state.currentDate.getMonth();
+      state.currentDate = new Date(y, m - 1, 1);
+    }
+    render();
+  };
+
+  elements.nextBtn.onclick = () => {
+    if (state.view === 'day') {
+      state.currentDate.setDate(state.currentDate.getDate() + 1);
+    } else if (state.view === 'week') {
+      state.currentDate.setDate(state.currentDate.getDate() + 7);
+    } else if (state.view === 'month') {
+      const y = state.currentDate.getFullYear();
+      const m = state.currentDate.getMonth();
+      state.currentDate = new Date(y, m + 1, 1);
+    }
+    render();
+  };
 }
