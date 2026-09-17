@@ -36,10 +36,13 @@ let state = {
   backups: [],
   currentDate: new Date(),
   view: 'day',
+  filterType: 'all', // 'all' | 'student' | 'planned' | 'planned-overdue' | 'completed' | 'completed-unpaid' | 'paid' | 'free'
+  filterStudentId: null,
   isEditMode: false,
   editingLessonId: null,
   currentInfoStudentId: null,
-  selectedNewStudentColor: PASTEL_COLORS[0]
+  selectedNewStudentColor: PASTEL_COLORS[0],
+  editingStudentIds: new Set()
 };
 
 const elements = {
@@ -51,6 +54,9 @@ const elements = {
   viewDayBtn: document.getElementById('view-day-btn'),
   viewWeekBtn: document.getElementById('view-week-btn'),
   viewMonthBtn: document.getElementById('view-month-btn'),
+
+  filterTypeSelect: document.getElementById('filter-type-select'),
+  filterStudentSelect: document.getElementById('filter-student-select'),
 
   themeToggleBtn: document.getElementById('theme-toggle-btn'),
   syncStatus: document.getElementById('sync-status'),
@@ -88,14 +94,18 @@ const elements = {
 
   studentsModal: document.getElementById('students-modal'),
   closeStudentsModalBtn: document.getElementById('close-students-modal-btn'),
+  openAddStudentModalBtn: document.getElementById('open-add-student-modal-btn'),
+  studentsList: document.getElementById('students-list'),
+
+  addStudentModal: document.getElementById('add-student-modal'),
+  closeAddStudentModalBtn: document.getElementById('close-add-student-modal-btn'),
   newStudentName: document.getElementById('new-student-name'),
   newStudentGrade: document.getElementById('new-student-grade'),
   newStudentPhone: document.getElementById('new-student-phone'),
   newStudentParentName: document.getElementById('new-student-parent-name'),
   newStudentParentPhone: document.getElementById('new-student-parent-phone'),
   newStudentSwatches: document.getElementById('new-student-swatches'),
-  addStudentBtn: document.getElementById('add-student-btn'),
-  studentsList: document.getElementById('students-list'),
+  saveNewStudentBtn: document.getElementById('save-new-student-btn'),
 
   lessonModal: document.getElementById('lesson-modal'),
   lessonModalTitle: document.getElementById('lesson-modal-title'),
@@ -123,13 +133,18 @@ const elements = {
 
   reportsModal: document.getElementById('reports-modal'),
   closeReportsModalBtn: document.getElementById('close-reports-modal-btn'),
+  reportTypeSelect: document.getElementById('report-type-select'),
   reportPeriodSelect: document.getElementById('report-period-select'),
   reportCustomRange: document.getElementById('report-custom-range'),
   reportFromDate: document.getElementById('report-from-date'),
   reportToDate: document.getElementById('report-to-date'),
   generateReportBtn: document.getElementById('generate-report-btn'),
   reportOutput: document.getElementById('report-output'),
-  reportIssues: document.getElementById('report-issues'),
+
+  modalIssuesBtn: document.getElementById('modal-issues-btn'),
+  issuesModal: document.getElementById('issues-modal'),
+  issuesList: document.getElementById('issues-list'),
+  closeIssuesModalBtn: document.getElementById('close-issues-modal-btn'),
 
   requestsModal: document.getElementById('requests-modal'),
   requestsList: document.getElementById('requests-list'),
@@ -160,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme(localStorage.getItem(THEME_STORAGE_KEY) || 'light');
   initTimeOptions();
   setupEventListeners();
-  setupSwipeNavigation();
+  setupModalDismissBehaviors();
 
   const urlParams = new URLSearchParams(window.location.search);
   state.key = urlParams.get('key') || 'default_schedule';
@@ -187,6 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 window.addEventListener('resize', () => {
   if (state.view === 'week') render();
+  if (state.view === 'month') updateMonthStickyOffset();
 });
 
 // ===================== ЗАГАЛЬНІ УТИЛІТИ: TOAST / CONFIRM / ТЕМА =====================
@@ -226,6 +242,72 @@ function applyTheme(theme) {
 
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
+}
+
+// ===================== ЗАКРИТТЯ МОДАЛЬНИХ ВІКОН: ESC/ENTER (ПК), СВАЙП/КЛІК ПОВЗ (МОБІЛЬНІ) =====================
+
+// Межа ширини екрана, з якої поведінка вважається "мобільною" (узгоджена з @media у CSS).
+function isMobileMode() {
+  return window.innerWidth <= 640;
+}
+
+function getOpenModal() {
+  return document.querySelector('.modal:not(.hidden)');
+}
+
+// kind: 'confirm' (Enter) — виконує основну дію вікна (напр. "Зберегти"); 'cancel' (Esc,
+// клік повз вікно, свайп) — закриває БЕЗ збереження внесених змін. Обидва відпрацьовують
+// через клік по відповідній кнопці, тож поводяться так само, як і ручне натискання.
+function triggerModalAction(modal, kind) {
+  if (!modal) return;
+  const btnId = kind === 'confirm' ? modal.dataset.confirmBtn : modal.dataset.cancelBtn;
+  const btn = btnId ? document.getElementById(btnId) : null;
+  if (btn) btn.click();
+  else modal.classList.add('hidden');
+}
+
+function setupModalDismissBehaviors() {
+  // Esc / Enter - для роботи з клавіатурою на ПК.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' && e.key !== 'Enter') return;
+    const modal = getOpenModal();
+    if (!modal) return;
+    e.preventDefault();
+    triggerModalAction(modal, e.key === 'Escape' ? 'cancel' : 'confirm');
+  });
+
+  // Клік повз область вікна та змахування вбік - лише в мобільному режимі,
+  // завжди закриття БЕЗ збереження внесених змін (аналог Esc).
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target !== modal) return; // клік саме по підложці, не по вмісту вікна
+      if (!isMobileMode()) return;
+      triggerModalAction(modal, 'cancel');
+    });
+
+    const content = modal.querySelector('.modal-content');
+    if (!content) return;
+
+    let touchStartX = 0, touchStartY = 0, touchActive = false;
+    content.addEventListener('touchstart', (e) => {
+      if (!isMobileMode() || e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchActive = true;
+    }, { passive: true });
+
+    content.addEventListener('touchend', (e) => {
+      if (!touchActive) return;
+      touchActive = false;
+      if (!isMobileMode()) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+        triggerModalAction(modal, 'cancel');
+      }
+    }, { passive: true });
+  });
 }
 
 // ===================== СИНХРОНІЗАЦІЯ / СТАТУС ЗБЕРЕЖЕННЯ =====================
@@ -402,6 +484,7 @@ function sanitizeState() {
   state.blockedSlots = state.blockedSlots.filter(b => b && b.date && b.time).map(b => ({ date: String(b.date), time: String(b.time) }));
   state.availableSlots = state.availableSlots.filter(b => b && b.date && b.time).map(b => ({ date: String(b.date), time: String(b.time) }));
   state.bookingRequests = state.bookingRequests.filter(r => r && r.date && r.time && r.studentId);
+  state.bookingRequests.forEach(r => { r.type = r.type === 'reschedule' ? 'reschedule' : 'booking'; });
 }
 
 async function loadSchedule() {
@@ -471,6 +554,8 @@ function render() {
   updateDateDisplay();
   updateViewButtons();
   updateStudentSelectOptions();
+  updateFilterStudentSelectOptions();
+  updateFilterVisibility();
   updateBadgeCounts();
   renderGrid();
 }
@@ -549,6 +634,70 @@ function updateStudentSelectOptions() {
     opt.textContent = s.name;
     elements.lessonStudentSelect.appendChild(opt);
   });
+}
+
+// ===================== ФІЛЬТР РОЗКЛАДУ =====================
+
+function updateFilterStudentSelectOptions() {
+  const select = elements.filterStudentSelect;
+  if (!select) return;
+  const prevValue = state.filterStudentId != null ? String(state.filterStudentId) : '';
+  select.innerHTML = '';
+  state.students.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = String(s.id);
+    opt.textContent = s.name;
+    select.appendChild(opt);
+  });
+
+  if (state.students.length === 0) {
+    state.filterStudentId = null;
+    return;
+  }
+
+  const stillExists = state.students.some(s => String(s.id) === prevValue);
+  if (!stillExists) state.filterStudentId = state.students[0].id;
+  select.value = String(state.filterStudentId);
+}
+
+function updateFilterVisibility() {
+  if (!elements.filterStudentSelect) return;
+  elements.filterStudentSelect.style.display = state.filterType === 'student' ? '' : 'none';
+}
+
+// Чи відповідає урок обраному фільтру відображення розкладу.
+function lessonMatchesFilter(lesson) {
+  const isPaid = lesson.paid === true || lesson.paid === 'true';
+  const isCompleted = lesson.status === 'completed';
+
+  switch (state.filterType) {
+    case 'student':
+      return state.filterStudentId != null && String(lesson.studentId) === String(state.filterStudentId);
+    case 'planned':
+      return !isCompleted;
+    case 'planned-overdue':
+      return !isCompleted && isPastDate(lesson.date);
+    case 'completed':
+      return isCompleted;
+    case 'completed-unpaid':
+      return isCompleted && !isPaid;
+    case 'paid':
+      return isPaid;
+    case 'free':
+      return false; // у цьому режимі уроки взагалі не показуються
+    case 'all':
+    default:
+      return true;
+  }
+}
+
+// Чи показувати вільні (доступні) години при поточному фільтрі.
+function shouldShowFreeSlots() {
+  return state.filterType === 'all' || state.filterType === 'free';
+}
+
+function isFilterActive() {
+  return state.filterType !== 'all';
 }
 
 function getStartOfWeek(d) {
@@ -696,7 +845,9 @@ function getRelevantHours(dateISO) {
 
 function buildDayEntries(dateISO, options) {
   const merge = !!options.merge;
-  const showUnavailable = !!options.showUnavailable;
+  // Позначки "Недоступно" мають сенс лише в загальному режимі перегляду (без активного фільтра відображення).
+  const showUnavailable = !!options.showUnavailable && !isFilterActive();
+  const showFree = shouldShowFreeSlots();
   const hours = getRelevantHours(dateISO);
 
   const entries = [];
@@ -714,11 +865,13 @@ function buildDayEntries(dateISO, options) {
 
     if (info.status === 'lesson') {
       flushRun();
-      entries.push({ type: 'lesson', hour: h, lessons: info.lessons });
+      const matchedLessons = info.lessons.filter(lessonMatchesFilter);
+      if (matchedLessons.length > 0) entries.push({ type: 'lesson', hour: h, lessons: matchedLessons });
       return;
     }
 
     if (info.status === 'available') {
+      if (!showFree) { flushRun(); return; }
       if (merge && h < DEFAULT_OPEN_HOUR) {
         if (run.length && run[run.length - 1] !== h - 1) flushRun();
         run.push(h);
@@ -739,11 +892,11 @@ function buildDayEntries(dateISO, options) {
 
 function renderWeekOrDayColumns(daysDates, options) {
   const isWeek = daysDates.length > 1;
-  const isMobile = window.innerWidth <= 640;
 
   elements.calendarGrid.className = '';
   const columnsWrap = document.createElement('div');
-  columnsWrap.className = `week-columns ${isWeek && isMobile ? 'mobile-stack' : ''}`;
+  // У режимі "Тиждень" дні розміщуються парами по ширині: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо (7 днів у 2 колонки).
+  columnsWrap.className = `week-columns ${isWeek ? 'week-pairs' : ''}`;
 
   daysDates.forEach(date => {
     const dateISO = formatDateISO(date);
@@ -758,7 +911,7 @@ function renderWeekOrDayColumns(daysDates, options) {
     if (entries.length === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.style.cssText = 'color:var(--text-muted); font-size:0.78rem; text-align:center; padding:8px;';
-      emptyMsg.textContent = 'Немає вільних годин';
+      emptyMsg.textContent = isFilterActive() ? 'Немає записів за фільтром' : 'Немає вільних годин';
       column.appendChild(emptyMsg);
     }
 
@@ -893,8 +1046,17 @@ function createLessonCard(lesson, pastDate) {
   return card;
 }
 
+function updateMonthStickyOffset() {
+  // Заголовки днів тижня в режимі "Місяць" мають прилипати одразу під верхньою панеллю (.header),
+  // тож визначаємо її фактичну висоту (вона змінюється залежно від ширини екрана) і передаємо в CSS.
+  const header = document.querySelector('.header');
+  const offset = header ? Math.round(header.getBoundingClientRect().height) : 0;
+  document.documentElement.style.setProperty('--month-sticky-top', offset + 'px');
+}
+
 function renderMonthView() {
   elements.calendarGrid.className = 'calendar-grid grid-month';
+  updateMonthStickyOffset();
 
   const year = state.currentDate.getFullYear();
   const month = state.currentDate.getMonth();
@@ -932,7 +1094,7 @@ function renderMonthView() {
     numDiv.textContent = day;
     cell.appendChild(numDiv);
 
-    const dayLessons = state.lessons.filter(l => l.date === dateISO);
+    const dayLessons = state.lessons.filter(l => l.date === dateISO && lessonMatchesFilter(l));
     dayLessons.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 
     dayLessons.forEach(l => {
@@ -1120,32 +1282,56 @@ function renderStudentsList() {
   if (state.students.length === 0) {
     const emptyMsg = document.createElement('div');
     emptyMsg.style.cssText = 'color:var(--text-muted); font-size:0.88rem; text-align:center; padding:12px;';
-    emptyMsg.textContent = 'Список порожній. Додайте учня вище.';
+    emptyMsg.textContent = 'Список порожній. Додайте учня кнопкою вище.';
     elements.studentsList.appendChild(emptyMsg);
     return;
   }
 
   state.students.forEach(student => {
+    const idStr = String(student.id);
+    const isEditing = state.editingStudentIds.has(idStr);
+
     const item = document.createElement('div');
     item.className = 'student-item';
 
+    // ---------- Верхній рядок: ім'я/клас (або поле редагування імені) + кнопки ----------
     const headerRow = document.createElement('div');
     headerRow.className = 'student-item-header';
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.value = student.name || '';
-    nameInput.style.cssText = 'flex:1; padding:6px 10px; border:1px solid var(--border-strong); border-radius:6px; font-weight:600; font-size:0.9rem; min-width:120px; background:var(--surface); color:var(--text);';
-    nameInput.onchange = async (e) => {
-      const val = e.target.value.trim();
-      if (val) {
-        const oldName = student.name;
-        student.name = val;
-        logAudit('Викладач', `Перейменовано учня "${oldName}" → "${val}"`);
-        await saveSchedule();
-        render();
+    const nameBlock = document.createElement('div');
+    nameBlock.className = 'student-name-block';
+
+    if (isEditing) {
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'student-edit-name-input';
+      nameInput.value = student.name || '';
+      nameInput.placeholder = "Ім'я учня";
+      nameInput.onchange = async (e) => {
+        const val = e.target.value.trim();
+        if (val) {
+          const oldName = student.name;
+          student.name = val;
+          if (oldName !== val) logAudit('Викладач', `Перейменовано учня "${oldName}" → "${val}"`);
+          await saveSchedule();
+          render();
+        } else {
+          e.target.value = student.name || '';
+        }
+      };
+      nameBlock.appendChild(nameInput);
+    } else {
+      const nameLine = document.createElement('div');
+      nameLine.className = 'student-name-line';
+      nameLine.textContent = student.name || '';
+      nameBlock.appendChild(nameLine);
+      if (student.grade) {
+        const gradeLine = document.createElement('div');
+        gradeLine.className = 'student-grade-line';
+        gradeLine.textContent = `Клас: ${student.grade}`;
+        nameBlock.appendChild(gradeLine);
       }
-    };
+    }
 
     const historyBtn = document.createElement('button');
     historyBtn.type = 'button';
@@ -1157,6 +1343,18 @@ function renderStudentsList() {
       openStudentInfoModal(student.id);
     };
 
+    const editToggleBtn = document.createElement('button');
+    editToggleBtn.type = 'button';
+    editToggleBtn.className = `small-btn${isEditing ? ' active' : ''}`;
+    editToggleBtn.textContent = isEditing ? '✓ Готово' : '✏️ Редагувати';
+    editToggleBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (state.editingStudentIds.has(idStr)) state.editingStudentIds.delete(idStr);
+      else state.editingStudentIds.add(idStr);
+      renderStudentsList();
+    };
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'danger';
     deleteBtn.type = 'button';
@@ -1166,9 +1364,9 @@ function renderStudentsList() {
       e.stopPropagation();
       const confirmed = await showConfirm(`Видалити учня "${student.name}" та всі його уроки?`);
       if (confirmed) {
-        const studentIdStr = String(student.id);
-        state.students = state.students.filter(s => String(s.id) !== studentIdStr);
-        state.lessons = state.lessons.filter(l => String(l.studentId) !== studentIdStr);
+        state.students = state.students.filter(s => String(s.id) !== idStr);
+        state.lessons = state.lessons.filter(l => String(l.studentId) !== idStr);
+        state.editingStudentIds.delete(idStr);
         logAudit('Викладач', `Видалено учня "${student.name}" та його уроки`);
         await saveSchedule();
         render();
@@ -1177,52 +1375,80 @@ function renderStudentsList() {
       }
     };
 
-    headerRow.appendChild(nameInput);
+    headerRow.appendChild(nameBlock);
     headerRow.appendChild(historyBtn);
+    headerRow.appendChild(editToggleBtn);
     headerRow.appendChild(deleteBtn);
-
-    const extraFields = document.createElement('div');
-    extraFields.className = 'student-extra-fields';
-
-    const makeExtraInput = (placeholder, value, onSave) => {
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.placeholder = placeholder;
-      inp.value = value || '';
-      inp.onchange = async (e) => {
-        onSave(e.target.value.trim());
-        await saveSchedule();
-      };
-      return inp;
-    };
-
-    extraFields.appendChild(makeExtraInput('Клас', student.grade, (v) => { student.grade = v; }));
-    extraFields.appendChild(makeExtraInput('Контактний телефон', student.phone, (v) => { student.phone = v; }));
-    extraFields.appendChild(makeExtraInput("Ім'я батьків", student.parentName, (v) => { student.parentName = v; }));
-    extraFields.appendChild(makeExtraInput('Телефон батьків', student.parentPhone, (v) => { student.parentPhone = v; }));
-
-    const swatchesDiv = document.createElement('div');
-    swatchesDiv.className = 'student-color-swatches';
-
-    PASTEL_COLORS.forEach(color => {
-      const dot = document.createElement('div');
-      dot.className = `swatch-dot ${student.color === color ? 'active' : ''}`;
-      dot.style.backgroundColor = color;
-      dot.onclick = async () => {
-        student.color = color;
-        await saveSchedule();
-        render();
-        renderStudentsList();
-      };
-      swatchesDiv.appendChild(dot);
-    });
-
     item.appendChild(headerRow);
-    item.appendChild(extraFields);
-    item.appendChild(swatchesDiv);
+
+    if (!isEditing) {
+      // ---------- Режим перегляду: лише контакти учня та батьків, без полів редагування ----------
+      const contactLine = document.createElement('div');
+      contactLine.className = 'student-contact-line';
+      const parts = [];
+      if (student.phone) parts.push(`📞 ${escapeHtml(student.phone)}`);
+      if (student.parentName) parts.push(`👤 ${escapeHtml(student.parentName)}`);
+      if (student.parentPhone) parts.push(`📞 батьки: ${escapeHtml(student.parentPhone)}`);
+      contactLine.innerHTML = parts.length ? parts.join(' &nbsp;·&nbsp; ') : '<span class="empty">Контакти не вказано</span>';
+      item.appendChild(contactLine);
+    } else {
+      // ---------- Режим редагування: усі поля учня та вибір кольору картки уроку ----------
+      const extraFields = document.createElement('div');
+      extraFields.className = 'student-extra-fields';
+
+      const makeExtraInput = (placeholder, value, onSave) => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.placeholder = placeholder;
+        inp.value = value || '';
+        inp.onchange = async (e) => {
+          onSave(e.target.value.trim());
+          await saveSchedule();
+        };
+        return inp;
+      };
+
+      extraFields.appendChild(makeExtraInput('Клас', student.grade, (v) => { student.grade = v; }));
+      extraFields.appendChild(makeExtraInput('Контактний телефон', student.phone, (v) => { student.phone = v; }));
+      extraFields.appendChild(makeExtraInput("Ім'я батьків", student.parentName, (v) => { student.parentName = v; }));
+      extraFields.appendChild(makeExtraInput('Телефон батьків', student.parentPhone, (v) => { student.parentPhone = v; }));
+      item.appendChild(extraFields);
+
+      const swatchesLabel = document.createElement('div');
+      swatchesLabel.style.cssText = 'font-size:0.78rem; font-weight:600; color:var(--text-muted); margin-top:2px;';
+      swatchesLabel.textContent = 'Колір картки уроку в розкладі:';
+      item.appendChild(swatchesLabel);
+
+      const swatchesDiv = document.createElement('div');
+      swatchesDiv.className = 'student-color-swatches';
+
+      PASTEL_COLORS.forEach(color => {
+        const dot = document.createElement('div');
+        dot.className = `swatch-dot ${student.color === color ? 'active' : ''}`;
+        dot.style.backgroundColor = color;
+        dot.onclick = async () => {
+          student.color = color;
+          await saveSchedule();
+          render();
+          renderStudentsList();
+        };
+        swatchesDiv.appendChild(dot);
+      });
+      item.appendChild(swatchesDiv);
+    }
 
     elements.studentsList.appendChild(item);
   });
+}
+
+function clearAddStudentForm() {
+  elements.newStudentName.value = '';
+  elements.newStudentGrade.value = '';
+  elements.newStudentPhone.value = '';
+  elements.newStudentParentName.value = '';
+  elements.newStudentParentPhone.value = '';
+  state.selectedNewStudentColor = PASTEL_COLORS[0];
+  renderNewStudentSwatches();
 }
 
 // ===================== УЧНІ: перегляд інформації (кнопка "Учні" на головній) =====================
@@ -1378,7 +1604,11 @@ function renderRequestsList() {
 
     const row = document.createElement('div');
     row.className = 'request-row';
-    row.innerHTML = `<strong>${escapeHtml(student ? student.name : 'Невідомий учень')}</strong><span>${escapeHtml(formatDateDisplay(r.date))}, ${escapeHtml(r.time)}</span>`;
+    if (r.type === 'reschedule') {
+      row.innerHTML = `<strong>${escapeHtml(student ? student.name : 'Невідомий учень')}</strong><span>Перенесення: ${escapeHtml(formatDateDisplay(r.oldDate))} ${escapeHtml(r.oldTime || '')} → ${escapeHtml(formatDateDisplay(r.date))}, ${escapeHtml(r.time)}</span>`;
+    } else {
+      row.innerHTML = `<strong>${escapeHtml(student ? student.name : 'Невідомий учень')}</strong><span>${escapeHtml(formatDateDisplay(r.date))}, ${escapeHtml(r.time)}</span>`;
+    }
 
     const actions = document.createElement('div');
     actions.className = 'request-actions';
@@ -1409,6 +1639,36 @@ async function approveBookingRequest(reqId) {
 
   const hour = parseInt(req.time.split(':')[0], 10);
   const status = getSlotStatus(req.date, hour);
+
+  if (req.type === 'reschedule') {
+    const lesson = state.lessons.find(l => String(l.id) === String(req.lessonId));
+    if (!lesson) {
+      showToast('Урок для перенесення вже не знайдено (можливо, видалений).', 'error');
+      state.bookingRequests = state.bookingRequests.filter(r => String(r.id) !== String(reqId));
+      await saveSchedule();
+      renderRequestsList();
+      updateBadgeCounts();
+      return;
+    }
+    // Новий час зайнятий, якщо там є урок, відмінний від того, що переносимо.
+    const conflict = status.status === 'lesson' && status.lessons.some(l => String(l.id) !== String(lesson.id));
+    if (conflict) {
+      showToast('Цей час вже зайнято іншим уроком.', 'error');
+      return;
+    }
+
+    logAudit('Викладач', `Підтверджено перенесення уроку ${student ? student.name : 'учня'} з ${req.oldDate} ${req.oldTime} на ${req.date} ${req.time}`);
+    lesson.date = req.date;
+    lesson.time = req.time;
+
+    state.bookingRequests = state.bookingRequests.filter(r => String(r.id) !== String(reqId));
+    await saveSchedule();
+    renderRequestsList();
+    render();
+    showToast('Перенесення підтверджено, урок оновлено в розкладі.', 'success');
+    return;
+  }
+
   if (status.status === 'lesson') {
     showToast('Цей час вже зайнято іншим уроком.', 'error');
     return;
@@ -1441,23 +1701,33 @@ async function rejectBookingRequest(reqId) {
   if (!req) return;
   const student = state.students.find(s => String(s.id) === String(req.studentId));
 
-  const confirmed = await showConfirm(`Відхилити заявку від ${student ? student.name : 'учня'} на ${req.date} ${req.time}?`);
+  const isReschedule = req.type === 'reschedule';
+  const confirmMessage = isReschedule
+    ? `Відхилити запит на перенесення уроку від ${student ? student.name : 'учня'} (${req.oldDate} ${req.oldTime} → ${req.date} ${req.time})?`
+    : `Відхилити заявку від ${student ? student.name : 'учня'} на ${req.date} ${req.time}?`;
+  const confirmed = await showConfirm(confirmMessage);
   if (!confirmed) return;
 
   state.bookingRequests = state.bookingRequests.filter(r => String(r.id) !== String(reqId));
-  logAudit('Викладач', `Відхилено заявку від ${student ? student.name : 'учня'} на ${req.date} ${req.time}`);
+  logAudit('Викладач', isReschedule
+    ? `Відхилено запит на перенесення уроку від ${student ? student.name : 'учня'} (${req.oldDate} ${req.oldTime} → ${req.date} ${req.time})`
+    : `Відхилено заявку від ${student ? student.name : 'учня'} на ${req.date} ${req.time}`);
   await saveSchedule();
   renderRequestsList();
   updateBadgeCounts();
-  showToast('Заявку відхилено.', 'info');
+  showToast(isReschedule ? 'Запит на перенесення відхилено.' : 'Заявку відхилено.', 'info');
 }
 
-// ===================== ЗВІТИ ТА ПЕРЕВІРКА ПОМИЛОК =====================
+// ===================== ЗВІТИ =====================
 
 function getReportRange() {
   const period = elements.reportPeriodSelect.value;
   const today = new Date();
 
+  if (period === 'today') {
+    const iso = formatDateISO(today);
+    return { from: iso, to: iso };
+  }
   if (period === 'week') {
     const start = getStartOfWeek(today);
     const end = new Date(start);
@@ -1469,6 +1739,26 @@ function getReportRange() {
     const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     return { from: formatDateISO(start), to: formatDateISO(end) };
   }
+  if (period === 'quarter') {
+    const q = Math.floor(today.getMonth() / 3);
+    const start = new Date(today.getFullYear(), q * 3, 1);
+    const end = new Date(today.getFullYear(), q * 3 + 3, 0);
+    return { from: formatDateISO(start), to: formatDateISO(end) };
+  }
+  if (period === 'year') {
+    const start = new Date(today.getFullYear(), 0, 1);
+    const end = new Date(today.getFullYear(), 11, 31);
+    return { from: formatDateISO(start), to: formatDateISO(end) };
+  }
+  if (period === 'all') {
+    if (state.lessons.length === 0) {
+      const iso = formatDateISO(today);
+      return { from: iso, to: iso };
+    }
+    const dates = state.lessons.map(l => l.date).sort();
+    return { from: dates[0], to: dates[dates.length - 1] };
+  }
+  // custom
   return {
     from: elements.reportFromDate.value || formatDateISO(today),
     to: elements.reportToDate.value || formatDateISO(today)
@@ -1477,6 +1767,67 @@ function getReportRange() {
 
 function generateReport() {
   const { from, to } = getReportRange();
+  const type = elements.reportTypeSelect.value;
+
+  if (type === 'summary') renderSummaryReport(from, to);
+  else if (type === 'planned') renderPlannedReport(from, to);
+  else if (type === 'payments') renderPaymentsReport(from, to);
+  else renderCompletedPaymentReport(from, to); // за замовчуванням - головний звіт
+}
+
+// Головний звіт: проведені уроки, розбиті на оплачені / неоплачені (по учнях і загалом).
+function renderCompletedPaymentReport(from, to) {
+  const lessons = state.lessons.filter(l => l.date >= from && l.date <= to && l.status === 'completed');
+  const paidLessons = lessons.filter(l => l.paid);
+  const unpaidLessons = lessons.filter(l => !l.paid);
+  const paidSum = paidLessons.reduce((sum, l) => sum + Number(l.paidAmount || 0), 0);
+  const unpaidEstimate = unpaidLessons.length * DEFAULT_PAID_AMOUNT;
+
+  const perStudentMap = new Map();
+  lessons.forEach(l => {
+    const student = state.students.find(s => String(s.id) === String(l.studentId));
+    const name = student ? student.name : 'Невідомий учень';
+    if (!perStudentMap.has(name)) {
+      perStudentMap.set(name, { name, completedCount: 0, paidCount: 0, paidSum: 0, unpaidCount: 0 });
+    }
+    const rec = perStudentMap.get(name);
+    rec.completedCount += 1;
+    if (l.paid) { rec.paidCount += 1; rec.paidSum += Number(l.paidAmount || 0); }
+    else rec.unpaidCount += 1;
+  });
+
+  const rows = Array.from(perStudentMap.values()).sort((a, b) => b.unpaidCount - a.unpaidCount || b.completedCount - a.completedCount);
+
+  let tableRows = rows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${r.completedCount}</td>
+      <td>${r.paidCount} <span style="color:var(--text-muted);">(${r.paidSum} грн)</span></td>
+      <td>${r.unpaidCount > 0 ? `<strong style="color:#b91c1c;">${r.unpaidCount}</strong>` : '0'}</td>
+    </tr>
+  `).join('');
+
+  if (!tableRows) {
+    tableRows = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Немає проведених уроків за обраний період</td></tr>`;
+  }
+
+  elements.reportOutput.innerHTML = `
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">Період: ${escapeHtml(formatDateDisplay(from))} — ${escapeHtml(formatDateDisplay(to))}</div>
+    <div class="stat-cards">
+      <div class="stat-card"><b>${lessons.length}</b><span>Проведено уроків</span></div>
+      <div class="stat-card"><b style="color:#15803d;">${paidLessons.length}</b><span>Оплачено (${paidSum} грн)</span></div>
+      <div class="stat-card"><b style="color:#b91c1c;">${unpaidLessons.length}</b><span>Не оплачено${unpaidLessons.length ? ` (≈${unpaidEstimate} грн)` : ''}</span></div>
+    </div>
+    <table class="report-table">
+      <thead><tr><th>Учень</th><th>Проведено</th><th>Оплачено</th><th>Не оплачено</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    ${unpaidLessons.length ? '<div style="font-size:0.78rem; color:var(--text-muted); margin-top:8px;">* Сума за неоплачені уроки орієнтовна, з розрахунку ' + DEFAULT_PAID_AMOUNT + ' грн/урок.</div>' : ''}
+  `;
+}
+
+// Загальний звіт: усі уроки по учнях (незалежно від статусу).
+function renderSummaryReport(from, to) {
   const lessonsInRange = state.lessons.filter(l => l.date >= from && l.date <= to);
 
   const totalLessons = lessonsInRange.length;
@@ -1525,9 +1876,77 @@ function generateReport() {
       <tbody>${tableRows}</tbody>
     </table>
   `;
-
-  renderReportIssues();
 }
+
+// Заплановані уроки за період (включно з тими, чия дата вже минула - для контролю).
+function renderPlannedReport(from, to) {
+  const lessons = state.lessons.filter(l => l.date >= from && l.date <= to && l.status === 'planned');
+  const overdue = lessons.filter(l => isPastDate(l.date));
+
+  const sorted = lessons.slice().sort((a, b) => `${a.date} ${a.time || ''}`.localeCompare(`${b.date} ${b.time || ''}`));
+  let tableRows = sorted.map(l => {
+    const student = state.students.find(s => String(s.id) === String(l.studentId));
+    const isOverdue = isPastDate(l.date);
+    return `
+      <tr${isOverdue ? ' style="background:var(--pending-bg,#fef3c7);"' : ''}>
+        <td>${escapeHtml(student ? student.name : 'Невідомий учень')}</td>
+        <td>${escapeHtml(formatDateDisplay(l.date))}, ${escapeHtml(l.time || '')}</td>
+        <td>${escapeHtml(l.topic || '—')}</td>
+        <td>${isOverdue ? '<strong style="color:#b91c1c;">Дата минула</strong>' : 'Заплановано'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  if (!tableRows) {
+    tableRows = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Немає запланованих уроків за обраний період</td></tr>`;
+  }
+
+  elements.reportOutput.innerHTML = `
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">Період: ${escapeHtml(formatDateDisplay(from))} — ${escapeHtml(formatDateDisplay(to))}</div>
+    <div class="stat-cards">
+      <div class="stat-card"><b>${lessons.length}</b><span>Заплановано уроків</span></div>
+      <div class="stat-card"><b style="color:${overdue.length ? '#b91c1c' : 'var(--text-strong)'};">${overdue.length}</b><span>Дата вже минула</span></div>
+    </div>
+    <table class="report-table">
+      <thead><tr><th>Учень</th><th>Дата і час</th><th>Тема</th><th>Статус</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+}
+
+// Звіт по способах оплати за період.
+function renderPaymentsReport(from, to) {
+  const lessonsInRange = state.lessons.filter(l => l.date >= from && l.date <= to && l.paid);
+  const byMethod = new Map();
+  let total = 0;
+
+  lessonsInRange.forEach(l => {
+    const method = l.paidMethod || 'Не вказано';
+    if (!byMethod.has(method)) byMethod.set(method, { method, count: 0, sum: 0 });
+    const rec = byMethod.get(method);
+    rec.count += 1;
+    rec.sum += Number(l.paidAmount || 0);
+    total += Number(l.paidAmount || 0);
+  });
+
+  const rows = Array.from(byMethod.values()).sort((a, b) => b.sum - a.sum);
+  let tableRows = rows.map(r => `<tr><td>${escapeHtml(r.method)}</td><td>${r.count}</td><td>${r.sum} грн</td></tr>`).join('');
+  if (!tableRows) tableRows = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">Немає оплат за обраний період</td></tr>`;
+
+  elements.reportOutput.innerHTML = `
+    <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:8px;">Період: ${escapeHtml(formatDateDisplay(from))} — ${escapeHtml(formatDateDisplay(to))}</div>
+    <div class="stat-cards">
+      <div class="stat-card"><b>${total} грн</b><span>Отримано всього</span></div>
+      <div class="stat-card"><b>${lessonsInRange.length}</b><span>Оплачених уроків</span></div>
+    </div>
+    <table class="report-table">
+      <thead><tr><th>Спосіб оплати</th><th>Кількість</th><th>Сума</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+}
+
+// ===================== ПЕРЕВІРКА ПОМИЛОК =====================
 
 function renderReportIssues() {
   const issues = [];
@@ -1550,12 +1969,12 @@ function renderReportIssues() {
     if (missing.length > 0) issues.push(`Учень "${s.name}": не заповнено — ${missing.join(', ')}.`);
   });
 
-  elements.reportIssues.innerHTML = '';
+  elements.issuesList.innerHTML = '';
   if (issues.length === 0) {
     const ok = document.createElement('div');
     ok.className = 'issue-item ok';
     ok.textContent = '✓ Помилок та незаповнених полів не знайдено.';
-    elements.reportIssues.appendChild(ok);
+    elements.issuesList.appendChild(ok);
     return;
   }
 
@@ -1563,7 +1982,7 @@ function renderReportIssues() {
     const el = document.createElement('div');
     el.className = 'issue-item';
     el.textContent = msg;
-    elements.reportIssues.appendChild(el);
+    elements.issuesList.appendChild(el);
   });
 }
 
@@ -1590,30 +2009,7 @@ async function copyToClipboard(text) {
   }
 }
 
-// ===================== СВАЙП-НАВІГАЦІЯ (МОБІЛЬНІ) =====================
-
-function setupSwipeNavigation() {
-  let touchStartX = 0, touchStartY = 0, touchActive = false;
-
-  elements.calendarGrid.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchActive = true;
-  }, { passive: true });
-
-  elements.calendarGrid.addEventListener('touchend', (e) => {
-    if (!touchActive) return;
-    touchActive = false;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStartX;
-    const dy = touch.clientY - touchStartY;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0) elements.nextBtn.click();
-      else elements.prevBtn.click();
-    }
-  }, { passive: true });
-}
+// ===================== НАВІГАЦІЯ: ЛИШЕ ЧЕРЕЗ КНОПКИ (свайп вимкнено навмисно) =====================
 
 // ===================== ОБРОБНИКИ ПОДІЙ =====================
 
@@ -1638,6 +2034,7 @@ function setupEventListeners() {
 
   elements.modalManageStudentsBtn.onclick = () => {
     elements.settingsModal.classList.add('hidden');
+    state.editingStudentIds.clear();
     renderStudentsList();
     elements.studentsModal.classList.remove('hidden');
   };
@@ -1651,10 +2048,16 @@ function setupEventListeners() {
 
   elements.modalReportsBtn.onclick = () => {
     elements.settingsModal.classList.add('hidden');
-    elements.reportOutput.innerHTML = '';
-    renderReportIssues();
+    generateReport(); // одразу показуємо звіт за замовчуванням (проведені уроки: оплачені/неоплачені за поточний тиждень)
     elements.reportsModal.classList.remove('hidden');
   };
+
+  elements.modalIssuesBtn.onclick = () => {
+    elements.settingsModal.classList.add('hidden');
+    renderReportIssues();
+    elements.issuesModal.classList.remove('hidden');
+  };
+  elements.closeIssuesModalBtn.onclick = () => elements.issuesModal.classList.add('hidden');
 
   elements.modalAuditLogBtn.onclick = () => {
     elements.settingsModal.classList.add('hidden');
@@ -1707,6 +2110,17 @@ function setupEventListeners() {
 
   elements.closeStudentsModalBtn.onclick = () => elements.studentsModal.classList.add('hidden');
 
+  elements.openAddStudentModalBtn.onclick = () => {
+    clearAddStudentForm();
+    elements.studentsModal.classList.add('hidden');
+    elements.addStudentModal.classList.remove('hidden');
+  };
+
+  elements.closeAddStudentModalBtn.onclick = () => {
+    elements.addStudentModal.classList.add('hidden');
+    elements.studentsModal.classList.remove('hidden');
+  };
+
   elements.lessonPaidSelect.onchange = () => {
     togglePaymentDetailsVisibility();
     if (elements.lessonPaidSelect.value === 'true' && !elements.lessonPaidDate.value) {
@@ -1714,7 +2128,7 @@ function setupEventListeners() {
     }
   };
 
-  elements.addStudentBtn.onclick = async () => {
+  elements.saveNewStudentBtn.onclick = async () => {
     const name = elements.newStudentName.value.trim();
     if (!name) {
       showToast("Будь ласка, введіть ім'я учня!", 'error');
@@ -1733,14 +2147,13 @@ function setupEventListeners() {
 
     logAudit('Викладач', `Додано учня "${name}"`);
 
-    elements.newStudentName.value = '';
-    elements.newStudentGrade.value = '';
-    elements.newStudentPhone.value = '';
-    elements.newStudentParentName.value = '';
-    elements.newStudentParentPhone.value = '';
     await saveSchedule();
     render();
+
+    clearAddStudentForm();
+    elements.addStudentModal.classList.add('hidden');
     renderStudentsList();
+    elements.studentsModal.classList.remove('hidden');
     showToast('Учня додано.', 'success');
   };
 
@@ -1834,6 +2247,19 @@ function setupEventListeners() {
   elements.viewDayBtn.onclick = () => { state.view = 'day'; render(); };
   elements.viewWeekBtn.onclick = () => { state.view = 'week'; render(); };
   elements.viewMonthBtn.onclick = () => { state.view = 'month'; render(); };
+
+  elements.filterTypeSelect.onchange = (e) => {
+    state.filterType = e.target.value;
+    if (state.filterType === 'student' && state.filterStudentId == null && state.students.length > 0) {
+      state.filterStudentId = state.students[0].id;
+    }
+    render();
+  };
+
+  elements.filterStudentSelect.onchange = (e) => {
+    state.filterStudentId = e.target.value;
+    render();
+  };
 
   elements.todayBtn.onclick = () => { state.currentDate = new Date(); render(); };
 

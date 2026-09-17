@@ -41,6 +41,9 @@
     .header p { margin: 0; font-size: 0.85rem; color: var(--text-muted); max-width: 480px; }
     #theme-toggle-btn { position: absolute; right: 0; top: 0; border: 1px solid var(--border-strong); background: var(--surface); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 1.1rem; color: var(--text); }
 
+    .info-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 2px; }
+    .info-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 999px; padding: 4px 10px; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); }
+
     .nav-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px; }
     button { cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); font-weight: 600; font-size: 0.88rem; color: var(--text); }
     button:hover { background: var(--surface-alt); }
@@ -49,14 +52,7 @@
 
     .date-display-big { font-size: 1.6rem; font-weight: 800; color: var(--text-strong); }
 
-    .my-lessons-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; max-width: 720px; margin-left: auto; margin-right: auto; }
-    .my-lessons-box h2 { margin: 0 0 8px 0; font-size: 1rem; color: var(--text-strong); }
-    .my-lesson-row { font-size: 0.85rem; padding: 6px 0; border-bottom: 1px dashed var(--border); color: var(--text); }
-    .my-lesson-row:last-child { border-bottom: none; }
-    .no-lessons { font-size: 0.85rem; color: var(--text-muted); }
-
     .week-columns { display: flex; gap: 8px; margin-top: 6px; align-items: flex-start; touch-action: pan-y; }
-    .week-columns.mobile-stack { flex-direction: column; }
     .day-column { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
 
     .day-header { text-align: center; padding: 8px 4px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -68,8 +64,42 @@
     .slot-free { border: 1px dashed var(--free-border); border-radius: 6px; color: var(--free-text); font-size: 0.8rem; min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--free-bg); font-weight: 700; text-align: center; padding: 6px; }
     .slot-free.bookable { cursor: pointer; }
     .slot-free.bookable:hover { filter: brightness(0.95); }
+    .slot-free.reschedule-target { border: 2px dashed var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
     .slot-pending { border: 1px dashed var(--pending-border); border-radius: 6px; color: var(--pending-text); font-size: 0.75rem; min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--pending-bg); font-weight: 700; text-align: center; padding: 6px; }
     .no-slots { color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 8px; }
+
+    /* Власні уроки учня в розкладі */
+    .slot-lesson { border-radius: 6px; font-size: 0.75rem; min-height: 44px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; padding: 6px; cursor: pointer; }
+    .slot-lesson:hover { filter: brightness(0.96); }
+    .slot-lesson.planned { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 30%, var(--surface)); color: var(--text-strong); box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .slot-lesson.completed { border: 2px solid var(--border-strong); background: color-mix(in srgb, var(--text-muted) 22%, var(--surface)); color: var(--text-strong); }
+    .slot-lesson.pending-reschedule { border: 1px dashed var(--pending-border); background: var(--pending-bg); color: var(--pending-text); }
+    .slot-lesson .slot-lesson-time { font-weight: 800; }
+    .slot-lesson .slot-lesson-student { font-weight: 700; font-size: 0.7rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot-lesson .slot-lesson-topic { font-weight: 600; font-size: 0.7rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot-lesson .slot-lesson-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+    .mini-badge { font-size: 0.62rem; font-weight: 800; padding: 1px 5px; border-radius: 4px; }
+    .mini-badge.status-planned { background: #dbeafe; color: #1e40af; }
+    .mini-badge.status-completed { background: #e2e8f0; color: #334155; }
+    .mini-badge.paid-yes { background: #dcfce7; color: #15803d; }
+    .mini-badge.paid-no { background: #fee2e2; color: #991b1b; }
+    [data-theme="dark"] .mini-badge.status-planned { background: #1e3a8a; color: #bfdbfe; }
+    [data-theme="dark"] .mini-badge.status-completed { background: #334155; color: #cbd5e1; }
+    [data-theme="dark"] .mini-badge.paid-yes { background: #0f2b1c; color: #4ade80; }
+    [data-theme="dark"] .mini-badge.paid-no { background: #3f1414; color: #fca5a5; }
+
+    /* Банер режиму перенесення уроку */
+    .reschedule-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--pending-bg); border: 1px solid var(--pending-border); color: var(--pending-text); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; max-width: 720px; margin-left: auto; margin-right: auto; font-size: 0.85rem; font-weight: 600; }
+    .reschedule-banner.hidden { display: none; }
+    .reschedule-banner button { flex-shrink: 0; }
+
+    /* Деталі уроку */
+    .lesson-detail-row { font-size: 0.88rem; padding: 6px 0; border-bottom: 1px dashed var(--border); color: var(--text); }
+    .lesson-detail-row:last-of-type { border-bottom: none; }
+    .lesson-detail-row b { color: var(--text-strong); }
+    .payment-note { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; }
+    .payment-note.paid { background: var(--free-bg); color: var(--free-text); border: 1px solid var(--free-border); }
+    .payment-note.unpaid { background: var(--pending-bg); color: var(--pending-text); border: 1px solid var(--pending-border); }
 
     .loading { text-align: center; color: var(--text-muted); padding: 40px; font-size: 0.95rem; }
 
@@ -80,6 +110,8 @@
 
     @media (max-width: 640px) {
       body { padding: 10px; }
+      /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
+      .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .date-display-big { font-size: 1.3rem; }
     }
   </style>
@@ -94,9 +126,16 @@
       <button id="theme-toggle-btn" title="Перемкнути тему">🌙</button>
     </div>
     <p id="page-subtitle">Тут показано лише вільні для запису години. Щоб записатись на урок, зверніться до викладача.</p>
+    <div class="info-bar">
+      <span class="info-pill">🕐 Час у розкладі вказано за Київським часом</span>
+      <span class="info-pill">💬 Основний засіб зв'язку: Viber +380507325937</span>
+    </div>
   </div>
 
-  <div id="my-lessons-container"></div>
+  <div id="reschedule-banner" class="reschedule-banner hidden">
+    <span id="reschedule-banner-text"></span>
+    <button id="reschedule-banner-cancel-btn">Скасувати</button>
+  </div>
 
   <div class="nav-row">
     <button id="prev-week-btn">&lt;</button>
@@ -112,12 +151,24 @@
   </div>
 
   <!-- Підтвердження заявки на бронювання -->
-  <div id="confirm-modal" class="modal hidden">
+  <div id="confirm-modal" class="modal hidden" data-confirm-btn="confirm-modal-ok-btn" data-cancel-btn="confirm-modal-cancel-btn">
     <div class="modal-content">
       <p id="confirm-modal-message" style="margin-top:0; margin-bottom:20px; font-size:0.95rem;"></p>
       <div class="flex-row">
         <button id="confirm-modal-cancel-btn" style="flex:1;">Скасувати</button>
         <button id="confirm-modal-ok-btn" class="primary" style="flex:1;">Надіслати заявку</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Деталі уроку учня -->
+  <div id="lesson-detail-modal" class="modal hidden" data-cancel-btn="lesson-detail-close-btn">
+    <div class="modal-content">
+      <h2 id="lesson-detail-title" style="margin:0 0 12px 0; font-size:1.05rem; color:var(--text-strong);"></h2>
+      <div id="lesson-detail-body"></div>
+      <div class="flex-row" style="margin-top:16px;">
+        <button id="lesson-detail-close-btn" style="flex:1;">Закрити</button>
+        <button id="lesson-detail-reschedule-btn" class="primary" style="flex:1;">Запросити перенесення</button>
       </div>
     </div>
   </div>

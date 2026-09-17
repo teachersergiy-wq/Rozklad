@@ -30,6 +30,7 @@
       --slot-unavail-text: #b91c1c;
       --overlay: rgba(15, 23, 42, 0.5);
       --shadow: rgba(0, 0, 0, 0.1);
+      --month-sticky-top: 0px;
     }
     [data-theme="dark"] {
       --bg: #0f172a;
@@ -61,7 +62,10 @@
     .header { position: sticky; top: 0; z-index: 500; background: var(--bg); display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
     .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between; }
 
-    .date-group, .view-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .date-group, .view-group, .filter-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .filter-group { width: 100%; justify-content: flex-start; }
+    .filter-group label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .filter-group select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 0.85rem; font-weight: 600; }
 
     button { cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); font-weight: 600; font-size: 0.88rem; transition: background 0.15s; color: var(--text); }
     button:hover { background: var(--surface-alt); }
@@ -89,9 +93,10 @@
 
     .calendar-grid { display: grid; gap: 8px; margin-top: 10px; width: 100%; touch-action: pan-y; }
     .grid-month { grid-template-columns: repeat(7, 1fr); }
+    /* Заголовки днів тижня в режимі "Місяць" закріплені під шапкою при прокрутці */
+    .grid-month .day-header { position: sticky; top: var(--month-sticky-top, 0px); z-index: 400; box-shadow: 0 2px 4px var(--shadow); }
 
     .week-columns { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; touch-action: pan-y; }
-    .week-columns.mobile-stack { flex-direction: column; }
     .day-column { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
 
     .day-header { text-align: center; padding: 8px 4px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -158,6 +163,13 @@
     .student-item-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
     .student-extra-fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
     .student-extra-fields input { padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 0.82rem; color: var(--text); background: var(--surface); }
+    .student-name-block { flex: 1; min-width: 120px; }
+    .student-name-line { font-weight: 700; font-size: 0.95rem; color: var(--text-strong); }
+    .student-grade-line { font-size: 0.78rem; color: var(--text-muted); margin-top: 1px; }
+    .student-contact-line { font-size: 0.82rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+    .student-contact-line .empty { font-style: italic; }
+    button.small-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .student-edit-name-input { width: 100%; padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font-weight: 600; font-size: 0.9rem; background: var(--surface); color: var(--text); }
 
     .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-alt); margin-bottom: 10px; }
 
@@ -208,11 +220,14 @@
     /* Адаптація під мобільні */
     @media (max-width: 640px) {
       body { padding: 10px; }
+      /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
+      .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .header h1 { font-size: 1.2rem; text-align: center; width: 100%; margin-bottom: 4px; }
       .controls { flex-direction: column; align-items: stretch; gap: 10px; }
       .date-group { justify-content: space-between; width: 100%; }
       .view-group { width: 100%; justify-content: space-between; }
       .view-group button { flex: 1; text-align: center; }
+      .filter-group select { flex: 1; min-width: 0; }
       #current-date-display { flex: 1; font-size: 0.9rem; }
       .date-display-big { font-size: 1.5rem; }
       .action-buttons-row { width: 100%; justify-content: space-between; }
@@ -239,6 +254,21 @@
         <button id="view-month-btn">Місяць</button>
       </div>
 
+      <div class="filter-group">
+        <label for="filter-type-select">Показати:</label>
+        <select id="filter-type-select">
+          <option value="all">Усе (за замовчуванням)</option>
+          <option value="student">Розклад учня…</option>
+          <option value="planned">Усі заплановані уроки</option>
+          <option value="planned-overdue">Заплановані, дата яких вже пройшла</option>
+          <option value="completed">Усі проведені уроки</option>
+          <option value="completed-unpaid">Проведені неоплачені уроки</option>
+          <option value="paid">Оплачені уроки</option>
+          <option value="free">Усі вільні (доступні) години</option>
+        </select>
+        <select id="filter-student-select" style="display:none;"></select>
+      </div>
+
       <div class="action-buttons-row flex-row">
         <span id="sync-status"><span class="dot"></span><span id="sync-status-text">Готово</span></span>
         <button id="theme-toggle-btn" class="icon-btn" title="Перемкнути тему">🌙</button>
@@ -255,7 +285,7 @@
   </div>
 
   <!-- Модальне вікно Налаштування -->
-  <div id="settings-modal" class="modal hidden">
+  <div id="settings-modal" class="modal hidden" data-confirm-btn="close-settings-modal-btn" data-cancel-btn="close-settings-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.25rem;">Налаштування</h2>
 
@@ -263,7 +293,8 @@
         <button id="modal-add-lesson-btn" class="primary" style="width: 100%; padding: 12px; font-size: 0.95rem;">+ Додати урок</button>
         <button id="modal-manage-students-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">Управління учнями</button>
         <button id="modal-requests-btn" style="width: 100%; padding: 12px; font-size: 0.95rem; position:relative;">🔔 Заявки на запис <span id="requests-badge-count" class="badge-count" style="display:none; position:static; margin-left:6px; border-radius:10px; padding:2px 7px;">0</span></button>
-        <button id="modal-reports-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📊 Звіти та перевірка помилок</button>
+        <button id="modal-reports-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📊 Звіти</button>
+        <button id="modal-issues-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">⚠️ Перевірка помилок</button>
         <button id="modal-audit-log-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🧾 Журнал змін</button>
         <button id="modal-backups-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🗄 Резервні копії</button>
         <button id="modal-student-link-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🔗 Загальне посилання для учнів</button>
@@ -281,9 +312,25 @@
   </div>
 
   <!-- Модальне вікно управління учнями -->
-  <div id="students-modal" class="modal hidden">
+  <div id="students-modal" class="modal hidden" data-confirm-btn="close-students-modal-btn" data-cancel-btn="close-students-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.25rem;">Управління учнями</h2>
+
+      <button id="open-add-student-modal-btn" type="button" class="primary" style="width: 100%;">+ Додати учня</button>
+
+      <h3 style="font-size: 1rem; margin-top: 18px; margin-bottom: 10px;">Список учнів</h3>
+      <div id="students-list" style="max-height: 420px; overflow-y: auto;"></div>
+
+      <div style="text-align: right; margin-top: 16px;">
+        <button id="close-students-modal-btn" style="width: 100%;">Закрити</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальне вікно додавання нового учня -->
+  <div id="add-student-modal" class="modal hidden" data-confirm-btn="save-new-student-btn" data-cancel-btn="close-add-student-modal-btn">
+    <div class="modal-content">
+      <h2 style="margin-top:0; font-size:1.25rem;">Додати учня</h2>
 
       <div class="form-group">
         <label>Ім'я учня</label>
@@ -317,19 +364,15 @@
         <div id="new-student-swatches" class="color-swatches"></div>
       </div>
 
-      <button id="add-student-btn" type="button" class="primary" style="width: 100%; margin-top: 4px;">+ Додати учня</button>
-
-      <h3 style="font-size: 1rem; margin-top: 20px; margin-bottom: 10px;">Список учнів</h3>
-      <div id="students-list" style="max-height: 320px; overflow-y: auto;"></div>
-
-      <div style="text-align: right; margin-top: 16px;">
-        <button id="close-students-modal-btn" style="width: 100%;">Закрити</button>
+      <div class="flex-row" style="margin-top: 4px;">
+        <button id="close-add-student-modal-btn" type="button" style="flex:1;">Скасувати</button>
+        <button id="save-new-student-btn" type="button" class="primary" style="flex:1;">+ Додати учня</button>
       </div>
     </div>
   </div>
 
   <!-- Модальне вікно вибору учня (кнопка "Учні" на головній) -->
-  <div id="students-picker-modal" class="modal hidden">
+  <div id="students-picker-modal" class="modal hidden" data-confirm-btn="close-students-picker-modal-btn" data-cancel-btn="close-students-picker-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.25rem;">Учні</h2>
       <div id="students-picker-list" style="max-height: 400px; overflow-y: auto; margin-top: 10px;"></div>
@@ -340,7 +383,7 @@
   </div>
 
   <!-- Модальне вікно інформації про учня -->
-  <div id="student-info-modal" class="modal hidden">
+  <div id="student-info-modal" class="modal hidden" data-confirm-btn="close-student-info-modal-btn" data-cancel-btn="close-student-info-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;" id="student-info-title">Учень</h2>
 
@@ -370,17 +413,32 @@
   </div>
 
   <!-- Модальне вікно звітів та перевірки помилок -->
-  <div id="reports-modal" class="modal hidden">
+  <div id="reports-modal" class="modal hidden" data-confirm-btn="close-reports-modal-btn" data-cancel-btn="close-reports-modal-btn">
     <div class="modal-content wide">
-      <h2 style="margin-top:0; font-size:1.25rem;">Звіти та перевірка помилок</h2>
+      <h2 style="margin-top:0; font-size:1.25rem;">📊 Звіти</h2>
 
-      <div class="form-group">
-        <label>Період</label>
-        <select id="report-period-select">
-          <option value="week">Поточний тиждень</option>
-          <option value="month">Поточний місяць</option>
-          <option value="custom">Довільний період</option>
-        </select>
+      <div class="flex-row">
+        <div class="form-group" style="flex:1;">
+          <label>Тип звіту</label>
+          <select id="report-type-select">
+            <option value="completed-payment">Проведені уроки: оплачені / неоплачені</option>
+            <option value="summary">Загальний звіт по учнях</option>
+            <option value="planned">Заплановані уроки</option>
+            <option value="payments">По способах оплати</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label>Період</label>
+          <select id="report-period-select">
+            <option value="today">Сьогодні</option>
+            <option value="week" selected>Поточний тиждень</option>
+            <option value="month">Поточний місяць</option>
+            <option value="quarter">Поточний квартал</option>
+            <option value="year">Поточний рік</option>
+            <option value="all">За весь час</option>
+            <option value="custom">Довільний період</option>
+          </select>
+        </div>
       </div>
 
       <div class="flex-row" id="report-custom-range" style="display:none;">
@@ -398,17 +456,26 @@
 
       <div id="report-output" style="margin-top:16px;"></div>
 
-      <h3 style="font-size: 1rem; margin-top: 20px; margin-bottom: 8px;">Поля, що потребують уваги</h3>
-      <div id="report-issues"></div>
-
       <div style="text-align: right; margin-top: 16px;">
         <button id="close-reports-modal-btn" style="width: 100%;">Закрити</button>
       </div>
     </div>
   </div>
 
+  <!-- Модальне вікно перевірки помилок -->
+  <div id="issues-modal" class="modal hidden" data-confirm-btn="close-issues-modal-btn" data-cancel-btn="close-issues-modal-btn">
+    <div class="modal-content wide">
+      <h2 style="margin-top:0; font-size:1.25rem;">⚠️ Перевірка помилок</h2>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0;">Незаповнені поля та записи, що потребують уваги — по всьому розкладу, незалежно від періоду.</p>
+      <div id="issues-list"></div>
+      <div style="text-align: right; margin-top: 16px;">
+        <button id="close-issues-modal-btn" style="width: 100%;">Закрити</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Модальне вікно заявок на запис -->
-  <div id="requests-modal" class="modal hidden">
+  <div id="requests-modal" class="modal hidden" data-confirm-btn="close-requests-modal-btn" data-cancel-btn="close-requests-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;">Заявки на запис від учнів</h2>
       <div id="requests-list" style="max-height: 420px; overflow-y: auto; margin-top: 10px;"></div>
@@ -419,7 +486,7 @@
   </div>
 
   <!-- Модальне вікно журналу змін -->
-  <div id="audit-log-modal" class="modal hidden">
+  <div id="audit-log-modal" class="modal hidden" data-confirm-btn="close-audit-log-modal-btn" data-cancel-btn="close-audit-log-modal-btn">
     <div class="modal-content wide">
       <h2 style="margin-top:0; font-size:1.2rem;">Журнал змін</h2>
       <div id="audit-log-list" style="max-height: 480px; overflow-y: auto; margin-top: 10px;"></div>
@@ -430,7 +497,7 @@
   </div>
 
   <!-- Модальне вікно резервних копій -->
-  <div id="backups-modal" class="modal hidden">
+  <div id="backups-modal" class="modal hidden" data-confirm-btn="close-backups-modal-btn" data-cancel-btn="close-backups-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;">Резервні копії</h2>
       <p style="font-size:0.82rem; color:var(--text-muted);">Копія створюється автоматично не частіше ніж раз на 24 години при відкритті застосунку. Зберігаються останні 14 копій.</p>
@@ -442,7 +509,7 @@
   </div>
 
   <!-- Модальне вікно посилання для учнів (загальне) -->
-  <div id="student-link-modal" class="modal hidden">
+  <div id="student-link-modal" class="modal hidden" data-confirm-btn="close-student-link-modal-btn" data-cancel-btn="close-student-link-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;">Загальне посилання на розклад</h2>
       <p style="font-size:0.88rem; color:var(--text-muted);">Показує лише вільні для запису години, без прив'язки до конкретного учня та без можливості подати заявку.</p>
@@ -457,7 +524,7 @@
   </div>
 
   <!-- Універсальне модальне вікно підтвердження -->
-  <div id="confirm-modal" class="modal hidden">
+  <div id="confirm-modal" class="modal hidden" data-confirm-btn="confirm-modal-ok-btn" data-cancel-btn="confirm-modal-cancel-btn">
     <div class="modal-content" style="max-width: 380px;">
       <p id="confirm-modal-message" style="font-size: 0.95rem; margin-top:0; margin-bottom: 20px;"></p>
       <div class="flex-row">
@@ -468,7 +535,7 @@
   </div>
 
   <!-- Модальне вікно додавання/редагування уроку -->
-  <div id="lesson-modal" class="modal hidden">
+  <div id="lesson-modal" class="modal hidden" data-confirm-btn="save-lesson-btn" data-cancel-btn="close-lesson-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.25rem;" id="lesson-modal-title">Додати урок</h2>
 

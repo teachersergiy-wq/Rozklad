@@ -22,7 +22,8 @@ let publicState = {
   bookingRequests: [],
   auditLog: [],
   backups: [],
-  currentDate: new Date()
+  currentDate: new Date(),
+  rescheduleFrom: null // { lessonId, date, time } — активний режим "оберіть новий час для перенесення"
 };
 
 const els = {
@@ -34,12 +35,19 @@ const els = {
   themeToggleBtn: document.getElementById('theme-toggle-btn'),
   pageTitle: document.getElementById('page-title'),
   pageSubtitle: document.getElementById('page-subtitle'),
-  myLessonsContainer: document.getElementById('my-lessons-container'),
   toastContainer: document.getElementById('toast-container'),
   confirmModal: document.getElementById('confirm-modal'),
   confirmModalMessage: document.getElementById('confirm-modal-message'),
   confirmModalCancelBtn: document.getElementById('confirm-modal-cancel-btn'),
-  confirmModalOkBtn: document.getElementById('confirm-modal-ok-btn')
+  confirmModalOkBtn: document.getElementById('confirm-modal-ok-btn'),
+  rescheduleBanner: document.getElementById('reschedule-banner'),
+  rescheduleBannerText: document.getElementById('reschedule-banner-text'),
+  rescheduleBannerCancelBtn: document.getElementById('reschedule-banner-cancel-btn'),
+  lessonDetailModal: document.getElementById('lesson-detail-modal'),
+  lessonDetailTitle: document.getElementById('lesson-detail-title'),
+  lessonDetailBody: document.getElementById('lesson-detail-body'),
+  lessonDetailCloseBtn: document.getElementById('lesson-detail-close-btn'),
+  lessonDetailRescheduleBtn: document.getElementById('lesson-detail-reschedule-btn')
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -59,16 +67,77 @@ document.addEventListener('DOMContentLoaded', async () => {
     publicState.student = publicState.students.find(s => String(s.id) === String(publicState.studentId)) || null;
     if (publicState.student) {
       els.pageTitle.textContent = `📅 Вітаємо, ${publicState.student.name}!`;
-      els.pageSubtitle.textContent = 'Тут показано ваші заплановані уроки та вільні години. Оберіть зручний вільний час, щоб надіслати заявку на запис — вона потрапить у розклад лише після підтвердження викладачем.';
-      renderMyLessons();
+      els.pageSubtitle.textContent = 'У розкладі показано ваші заплановані та проведені уроки, а також вільні для запису години. Натисніть на свій урок, щоб побачити тему, домашнє завдання й статус оплати, або надішліть заявку на вільний час.';
     } else {
       els.pageSubtitle.textContent = 'Учня для цього посилання не знайдено. Зверніться до викладача за коректним посиланням.';
     }
   }
 
   setupPublicListeners();
+  setupModalDismissBehaviors();
   renderPublicWeek();
 });
+
+// ===================== ЗАКРИТТЯ МОДАЛЬНИХ ВІКОН: ESC/ENTER (ПК), СВАЙП/КЛІК ПОВЗ (МОБІЛЬНІ) =====================
+
+function isMobileMode() {
+  return window.innerWidth <= 640;
+}
+
+function getOpenModal() {
+  return document.querySelector('.modal:not(.hidden)');
+}
+
+// kind: 'confirm' (Enter) — основна дія вікна; 'cancel' (Esc, клік повз, свайп) — закриття
+// БЕЗ надсилання заявки/збереження внесеного.
+function triggerModalAction(modal, kind) {
+  if (!modal) return;
+  const btnId = kind === 'confirm' ? modal.dataset.confirmBtn : modal.dataset.cancelBtn;
+  const btn = btnId ? document.getElementById(btnId) : null;
+  if (btn) btn.click();
+  else modal.classList.add('hidden');
+}
+
+function setupModalDismissBehaviors() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' && e.key !== 'Enter') return;
+    const modal = getOpenModal();
+    if (!modal) return;
+    e.preventDefault();
+    triggerModalAction(modal, e.key === 'Escape' ? 'cancel' : 'confirm');
+  });
+
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target !== modal) return;
+      if (!isMobileMode()) return;
+      triggerModalAction(modal, 'cancel');
+    });
+
+    const content = modal.querySelector('.modal-content');
+    if (!content) return;
+
+    let touchStartX = 0, touchStartY = 0, touchActive = false;
+    content.addEventListener('touchstart', (e) => {
+      if (!isMobileMode() || e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchActive = true;
+    }, { passive: true });
+
+    content.addEventListener('touchend', (e) => {
+      if (!touchActive) return;
+      touchActive = false;
+      if (!isMobileMode()) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+      if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+        triggerModalAction(modal, 'cancel');
+      }
+    }, { passive: true });
+  });
+}
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
@@ -215,28 +284,10 @@ function setupPublicListeners() {
     renderPublicWeek();
   };
   window.addEventListener('resize', renderPublicWeek);
-  setupSwipeNavigation();
-}
+  // Свайп-навігація вимкнена навмисно: переходи між тижнями відбуваються лише через кнопки "<"/">"
 
-function setupSwipeNavigation() {
-  let touchStartX = 0, touchStartY = 0, touchActive = false;
-  els.container.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    touchActive = true;
-  }, { passive: true });
-  els.container.addEventListener('touchend', (e) => {
-    if (!touchActive) return;
-    touchActive = false;
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStartX;
-    const dy = touch.clientY - touchStartY;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0) els.nextBtn.click();
-      else els.prevBtn.click();
-    }
-  }, { passive: true });
+  els.rescheduleBannerCancelBtn.onclick = () => cancelRescheduleMode();
+  els.lessonDetailCloseBtn.onclick = () => hideLessonDetailModal();
 }
 
 function formatDateISO(date) {
@@ -301,6 +352,141 @@ function getMyPendingRequest(dateISO, hour) {
   ) || null;
 }
 
+// Урок (будь-якого учня), що займає конкретну годину — використовується, щоб не показувати
+// вільним цей час, навіть якщо урок належить іншому учневі.
+function getLessonAtHour(dateISO, hour) {
+  return publicState.lessons.find(l => {
+    if (l.date !== dateISO) return false;
+    const lHour = parseInt((l.time || '00:00').split(':')[0], 10);
+    return lHour === hour;
+  }) || null;
+}
+
+function isOwnLesson(lesson) {
+  return !!lesson && publicState.studentId && String(lesson.studentId) === String(publicState.studentId);
+}
+
+// Активна заявка на перенесення саме цього уроку (щойно надіслана, очікує підтвердження).
+function getPendingRescheduleForLesson(lessonId) {
+  return publicState.bookingRequests.find(r =>
+    r.status === 'pending' && r.type === 'reschedule' && String(r.lessonId) === String(lessonId)
+  ) || null;
+}
+
+function isLessonInPast(lesson) {
+  const hour = parseInt((lesson.time || '00:00').split(':')[0], 10);
+  return isPastSlot(lesson.date, hour);
+}
+
+// ===================== ДЕТАЛІ УРОКУ ТА ЗАПИТ НА ПЕРЕНЕСЕННЯ =====================
+
+function showLessonDetailModal(lesson) {
+  const isCompleted = lesson.status === 'completed';
+  const isPaid = lesson.paid === true || lesson.paid === 'true';
+  const pendingReschedule = getPendingRescheduleForLesson(lesson.id);
+
+  els.lessonDetailTitle.textContent = `${formatDateDisplay(lesson.date)}, ${lesson.time || ''}`;
+
+  let html = '';
+  html += `<div class="lesson-detail-row"><b>Статус:</b> ${isCompleted ? 'Проведено' : 'Заплановано'}</div>`;
+  html += `<div class="lesson-detail-row"><b>Тема уроку:</b> ${lesson.topic ? escapeHtml(lesson.topic) : '—'}</div>`;
+  html += `<div class="lesson-detail-row"><b>Домашнє завдання:</b> ${lesson.homework ? escapeHtml(lesson.homework) : '—'}</div>`;
+  els.lessonDetailBody.innerHTML = html;
+
+  const note = document.createElement('div');
+  note.className = `payment-note ${isPaid ? 'paid' : 'unpaid'}`;
+  const isMathema = lesson.paidMethod === 'Mathema';
+  note.textContent = isPaid
+    ? `Оплачено${(lesson.paidAmount != null && !isMathema) ? ' · ' + lesson.paidAmount + ' грн' : ''}${lesson.paidMethod ? ' · ' + lesson.paidMethod : ''}`
+    : '⚠️ Урок ще не оплачено. Будь ласка, зв\'яжіться з викладачем щодо оплати.';
+  els.lessonDetailBody.appendChild(note);
+
+  if (pendingReschedule) {
+    const rNote = document.createElement('div');
+    rNote.className = 'lesson-detail-row';
+    rNote.style.marginTop = '10px';
+    rNote.innerHTML = `<b>⏳ Запит на перенесення</b> вже надіслано (на ${formatDateDisplay(pendingReschedule.date)}, ${pendingReschedule.time}) — очікує підтвердження викладача.`;
+    els.lessonDetailBody.appendChild(rNote);
+  }
+
+  const canReschedule = !isCompleted && !isLessonInPast(lesson) && !pendingReschedule;
+  els.lessonDetailRescheduleBtn.style.display = canReschedule ? 'block' : 'none';
+  els.lessonDetailRescheduleBtn.onclick = () => {
+    hideLessonDetailModal();
+    startRescheduleMode(lesson);
+  };
+
+  els.lessonDetailModal.classList.remove('hidden');
+}
+
+function hideLessonDetailModal() {
+  els.lessonDetailModal.classList.add('hidden');
+}
+
+function startRescheduleMode(lesson) {
+  publicState.rescheduleFrom = { lessonId: lesson.id, date: lesson.date, time: lesson.time };
+  els.rescheduleBannerText.textContent = `Оберіть новий вільний час для перенесення уроку з ${formatDateDisplay(lesson.date)}, ${lesson.time}`;
+  els.rescheduleBanner.classList.remove('hidden');
+  showToast('Тепер оберіть вільний час у розкладі, щоб запропонувати нову дату уроку.', 'info');
+  renderPublicWeek();
+}
+
+function cancelRescheduleMode() {
+  publicState.rescheduleFrom = null;
+  els.rescheduleBanner.classList.add('hidden');
+  renderPublicWeek();
+}
+
+// Заявка на перенесення уроку — на відміну від звичайної заявки на запис, посилається на
+// існуючий урок (lessonId) і зберігає й стару, і нову дату/час. Викладач бачить обидві
+// в своєму списку заявок і, підтверджуючи, переносить сам урок (а не створює новий).
+async function submitRescheduleRequest(newDateISO, newHour) {
+  if (!publicState.rescheduleFrom) return;
+  await loadPublicSchedule();
+
+  const { lessonId, date: oldDate, time: oldTime } = publicState.rescheduleFrom;
+
+  const hourStatus = getSlotStatus(newDateISO, newHour);
+  if (hourStatus.status !== 'available') {
+    showToast('На жаль, цей час вже зайнято. Оберіть інший.', 'error');
+    renderPublicWeek();
+    return;
+  }
+
+  const newTimeStr = hourToTimeStr(newHour);
+  if (newDateISO === oldDate && newTimeStr === oldTime) {
+    showToast('Це той самий час, що й зараз. Оберіть інший.', 'error');
+    return;
+  }
+
+  publicState.bookingRequests.push({
+    id: `${Date.now()}_reschedreq`,
+    type: 'reschedule',
+    lessonId,
+    studentId: publicState.studentId,
+    oldDate,
+    oldTime,
+    date: newDateISO,
+    time: newTimeStr,
+    status: 'pending',
+    createdAt: Date.now()
+  });
+
+  publicState.auditLog.unshift({
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    ts: Date.now(),
+    actor: 'Учень',
+    action: `${publicState.student ? publicState.student.name : 'Учень'} запросив(ла) перенесення уроку з ${oldDate} ${oldTime} на ${newDateISO} ${newTimeStr}`
+  });
+
+  publicState.rescheduleFrom = null;
+  els.rescheduleBanner.classList.add('hidden');
+
+  await savePublicSchedule();
+  showToast('Запит на перенесення надіслано! Очікуйте підтвердження від викладача.', 'success');
+  renderPublicWeek();
+}
+
 function getRelevantHours() {
   const hours = [];
   for (let h = MIN_HOUR; h <= MAX_HOUR; h++) hours.push(h);
@@ -321,6 +507,16 @@ function buildPublicDayEntries(dateISO) {
   }
 
   hours.forEach(h => {
+    const lessonHere = getLessonAtHour(dateISO, h);
+    if (lessonHere) {
+      flushRun();
+      if (isOwnLesson(lessonHere)) {
+        entries.push({ type: 'lesson', start: h, end: h + 1, lesson: lessonHere });
+      }
+      // Урок іншого учня: година просто прихована (зайнята), без деталей — приватність.
+      return;
+    }
+
     const pendingReq = getMyPendingRequest(dateISO, h);
     if (pendingReq) {
       flushRun();
@@ -364,38 +560,6 @@ function createDayHeaderElement(date) {
   return header;
 }
 
-function renderMyLessons() {
-  if (!publicState.student) return;
-  const idStr = String(publicState.studentId);
-  const todayISO = formatDateISO(new Date());
-  const upcoming = publicState.lessons
-    .filter(l => String(l.studentId) === idStr && l.status === 'planned' && l.date >= todayISO)
-    .sort((a, b) => `${a.date} ${a.time || ''}`.localeCompare(`${b.date} ${b.time || ''}`));
-
-  const box = document.createElement('div');
-  box.className = 'my-lessons-box';
-  const heading = document.createElement('h2');
-  heading.textContent = '📚 Ваші заплановані уроки';
-  box.appendChild(heading);
-
-  if (upcoming.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'no-lessons';
-    empty.textContent = 'У вас поки немає запланованих уроків.';
-    box.appendChild(empty);
-  } else {
-    upcoming.forEach(l => {
-      const row = document.createElement('div');
-      row.className = 'my-lesson-row';
-      row.innerHTML = `<strong>${formatDateDisplay(l.date)}, ${l.time || ''}</strong>${l.topic ? ' — ' + escapeHtml(l.topic) : ''}`;
-      box.appendChild(row);
-    });
-  }
-
-  els.myLessonsContainer.innerHTML = '';
-  els.myLessonsContainer.appendChild(box);
-}
-
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);
@@ -415,10 +579,10 @@ function renderPublicWeek() {
     daysDates.push(d);
   }
 
-  const isMobile = window.innerWidth <= 640;
   els.container.innerHTML = '';
   const wrap = document.createElement('div');
-  wrap.className = `week-columns ${isMobile ? 'mobile-stack' : ''}`;
+  // Дні тижня розміщуються парами по ширині: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо.
+  wrap.className = 'week-columns week-pairs';
 
   daysDates.forEach(date => {
     const dateISO = formatDateISO(date);
@@ -442,20 +606,87 @@ function renderPublicWeek() {
           return;
         }
 
+        if (e.type === 'lesson') {
+          const lesson = e.lesson;
+          const isCompleted = lesson.status === 'completed';
+          const isPaid = lesson.paid === true || lesson.paid === 'true';
+          const pendingReschedule = getPendingRescheduleForLesson(lesson.id);
+
+          const el = document.createElement('div');
+          el.className = `slot-lesson ${pendingReschedule ? 'pending-reschedule' : (isCompleted ? 'completed' : 'planned')}`;
+          el.title = 'Натисніть, щоб переглянути деталі уроку';
+
+          const timeEl = document.createElement('div');
+          timeEl.className = 'slot-lesson-time';
+          timeEl.textContent = hourToTimeStr(e.start);
+          el.appendChild(timeEl);
+
+          const studentForLesson = publicState.students.find(s => String(s.id) === String(lesson.studentId));
+          if (studentForLesson && studentForLesson.name) {
+            const studentEl = document.createElement('div');
+            studentEl.className = 'slot-lesson-student';
+            studentEl.textContent = studentForLesson.name;
+            el.appendChild(studentEl);
+          }
+
+          if (lesson.topic) {
+            const topicEl = document.createElement('div');
+            topicEl.className = 'slot-lesson-topic';
+            topicEl.textContent = lesson.topic;
+            el.appendChild(topicEl);
+          }
+
+          const badgesEl = document.createElement('div');
+          badgesEl.className = 'slot-lesson-badges';
+          if (pendingReschedule) {
+            const b = document.createElement('span');
+            b.className = 'mini-badge status-planned';
+            b.textContent = '⏳ Перенесення';
+            badgesEl.appendChild(b);
+          } else {
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `mini-badge ${isCompleted ? 'status-completed' : 'status-planned'}`;
+            statusBadge.textContent = isCompleted ? 'Проведено' : 'Заплановано';
+            badgesEl.appendChild(statusBadge);
+          }
+          const paidBadge = document.createElement('span');
+          paidBadge.className = `mini-badge ${isPaid ? 'paid-yes' : 'paid-no'}`;
+          paidBadge.textContent = isPaid ? 'Оплачено' : 'Не опл.';
+          badgesEl.appendChild(paidBadge);
+          el.appendChild(badgesEl);
+
+          el.onclick = () => showLessonDetailModal(lesson);
+          column.appendChild(el);
+          return;
+        }
+
         const el = document.createElement('div');
         el.className = 'slot-free';
         el.textContent = `${hourToTimeStr(e.start)}–${hourToTimeStr(e.end)} Вільно`;
 
         if (publicState.studentId && publicState.student) {
           el.classList.add('bookable');
-          el.title = 'Натисніть, щоб надіслати заявку на запис';
-          el.onclick = async () => {
-            const label = e.end - e.start > 1
-              ? `${hourToTimeStr(e.start)}–${hourToTimeStr(e.end)}`
-              : hourToTimeStr(e.start);
-            const confirmed = await showConfirm(`Надіслати заявку на запис: ${formatDateDisplay(dateISO)}, ${label} (початок о ${hourToTimeStr(e.start)})?`);
-            if (confirmed) await submitBookingRequest(dateISO, e.start);
-          };
+
+          if (publicState.rescheduleFrom) {
+            el.classList.add('reschedule-target');
+            el.title = 'Натисніть, щоб запропонувати цей час для перенесення уроку';
+            el.onclick = async () => {
+              const label = e.end - e.start > 1
+                ? `${hourToTimeStr(e.start)}–${hourToTimeStr(e.end)}`
+                : hourToTimeStr(e.start);
+              const confirmed = await showConfirm(`Запросити перенесення уроку з ${formatDateDisplay(publicState.rescheduleFrom.date)}, ${publicState.rescheduleFrom.time} на ${formatDateDisplay(dateISO)}, ${label}?`);
+              if (confirmed) await submitRescheduleRequest(dateISO, e.start);
+            };
+          } else {
+            el.title = 'Натисніть, щоб надіслати заявку на запис';
+            el.onclick = async () => {
+              const label = e.end - e.start > 1
+                ? `${hourToTimeStr(e.start)}–${hourToTimeStr(e.end)}`
+                : hourToTimeStr(e.start);
+              const confirmed = await showConfirm(`Надіслати заявку на запис: ${formatDateDisplay(dateISO)}, ${label} (початок о ${hourToTimeStr(e.start)})?`);
+              if (confirmed) await submitBookingRequest(dateISO, e.start);
+            };
+          }
         }
 
         column.appendChild(el);
