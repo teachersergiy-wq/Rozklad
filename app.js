@@ -42,7 +42,9 @@ let state = {
   editingLessonId: null,
   currentInfoStudentId: null,
   selectedNewStudentColor: PASTEL_COLORS[0],
-  editingStudentIds: new Set()
+  editingStudentIds: new Set(),
+  contextLessonId: null,
+  contextSlot: null
 };
 
 const elements = {
@@ -168,7 +170,12 @@ const elements = {
   confirmModalCancelBtn: document.getElementById('confirm-modal-cancel-btn'),
   confirmModalOkBtn: document.getElementById('confirm-modal-ok-btn'),
 
-  toastContainer: document.getElementById('toast-container')
+  toastContainer: document.getElementById('toast-container'),
+  contextMenu: document.getElementById('lesson-context-menu'),
+  contextMenuEdit: document.getElementById('context-menu-edit'),
+  contextMenuDelete: document.getElementById('context-menu-delete'),
+  contextMenuAdd: document.getElementById('context-menu-add'),
+  contextMenuToggle: document.getElementById('context-menu-toggle')
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -176,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTimeOptions();
   setupEventListeners();
   setupModalDismissBehaviors();
+  setupContextMenu();
 
   const urlParams = new URLSearchParams(window.location.search);
   state.key = urlParams.get('key') || 'default_schedule';
@@ -967,9 +975,19 @@ function attachFreeSlotHandlers(el, dateISO, hour, pastDate) {
   if (state.isEditMode) {
     el.title = 'Натисніть, щоб позначити слот недоступним';
     el.onclick = async () => { await toggleSlotAvailability(dateISO, hour); render(); };
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e.clientX, e.clientY, { dateISO, hour });
+    };
   } else {
     el.title = 'Натисніть, щоб швидко додати урок на цей час';
     el.onclick = () => openAddLessonModal(dateISO, hour);
+    el.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e.clientX, e.clientY, { dateISO, hour });
+    };
   }
 
   el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-over'); };
@@ -979,6 +997,100 @@ function attachFreeSlotHandlers(el, dateISO, hour, pastDate) {
     el.classList.remove('drag-over');
     const lessonId = e.dataTransfer.getData('text/plain');
     await moveLesson(lessonId, dateISO, hourToTimeStr(hour));
+  };
+}
+
+function hideContextMenu() {
+  if (!elements.contextMenu) return;
+  elements.contextMenu.classList.add('hidden');
+  state.contextLessonId = null;
+  state.contextSlot = null;
+}
+
+function showContextMenu(x, y, { lessonId = null, dateISO = null, hour = null } = {}) {
+  if (!elements.contextMenu) return;
+  state.contextLessonId = lessonId ? String(lessonId) : null;
+  state.contextSlot = dateISO && hour != null ? { dateISO, hour } : null;
+
+  const lesson = state.contextLessonId
+    ? state.lessons.find(l => String(l.id) === state.contextLessonId)
+    : null;
+
+  elements.contextMenuEdit.style.display = lesson ? 'block' : 'none';
+  elements.contextMenuDelete.style.display = lesson ? 'block' : 'none';
+  elements.contextMenuAdd.style.display = !lesson && state.contextSlot ? 'block' : 'none';
+  elements.contextMenuToggle.style.display = !lesson && state.contextSlot ? 'block' : 'none';
+
+  if (lesson && lesson.status !== 'planned') {
+    elements.contextMenuDelete.disabled = true;
+    elements.contextMenuDelete.title = 'Проведений урок не можна видалити через контекстне меню.';
+  } else {
+    elements.contextMenuDelete.disabled = false;
+    elements.contextMenuDelete.title = '';
+  }
+
+  elements.contextMenu.classList.remove('hidden');
+  const rect = elements.contextMenu.getBoundingClientRect();
+  const maxX = Math.max(4, window.innerWidth - rect.width - 4);
+  const maxY = Math.max(4, window.innerHeight - rect.height - 4);
+  elements.contextMenu.style.left = Math.min(Math.max(4, x), maxX) + 'px';
+  elements.contextMenu.style.top = Math.min(Math.max(4, y), maxY) + 'px';
+}
+
+async function contextDeleteLesson() {
+  const lessonId = state.contextLessonId;
+  hideContextMenu();
+  if (!lessonId) return;
+
+  const lesson = state.lessons.find(l => String(l.id) === lessonId);
+  if (!lesson) return;
+  if (lesson.status !== 'planned') {
+    showToast('Проведений урок не можна видалити.', 'error');
+    return;
+  }
+
+  const student = state.students.find(s => String(s.id) === String(lesson.studentId));
+  const confirmed = await showConfirm(
+    `Видалити урок ${student ? '"' + student.name + '"' : ''} — ${lesson.date} ${lesson.time}?`
+  );
+  if (!confirmed) return;
+
+  state.lessons = state.lessons.filter(l => String(l.id) !== lessonId);
+  logAudit('Викладач', `Видалено урок ${student ? student.name : ''} (${lesson.date} ${lesson.time})`);
+  await saveSchedule();
+  render();
+  showToast('Урок видалено.', 'success');
+}
+
+function setupContextMenu() {
+  if (!elements.contextMenu) return;
+
+  document.addEventListener('click', hideContextMenu);
+  document.addEventListener('scroll', hideContextMenu, true);
+  window.addEventListener('resize', hideContextMenu);
+
+  elements.contextMenu.addEventListener('click', e => e.stopPropagation());
+
+  elements.contextMenuEdit.onclick = () => {
+    const lessonId = state.contextLessonId;
+    hideContextMenu();
+    if (lessonId) openEditLessonModal(lessonId);
+  };
+
+  elements.contextMenuDelete.onclick = () => contextDeleteLesson();
+
+  elements.contextMenuAdd.onclick = () => {
+    const slot = state.contextSlot;
+    hideContextMenu();
+    if (slot) openAddLessonModal(slot.dateISO, slot.hour);
+  };
+
+  elements.contextMenuToggle.onclick = async () => {
+    const slot = state.contextSlot;
+    hideContextMenu();
+    if (!slot) return;
+    await toggleSlotAvailability(slot.dateISO, slot.hour);
+    render();
   };
 }
 
@@ -1039,6 +1151,11 @@ function createLessonCard(lesson, pastDate) {
   card.appendChild(badgesRow);
 
   card.onclick = () => openEditLessonModal(lesson.id);
+  card.oncontextmenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showContextMenu(e.clientX, e.clientY, { lessonId: lesson.id });
+  };
   if (canDrag) {
     card.ondragstart = (e) => e.dataTransfer.setData('text/plain', String(lesson.id));
   }
@@ -1269,7 +1386,7 @@ function openEditLessonModal(lessonId) {
   elements.lessonModalTitle.textContent = editable ? 'Редагувати урок' : 'Перегляд уроку';
   setLessonFormEditable(editable);
 
-  const canDelete = state.isEditMode && lesson.status === 'planned';
+  const canDelete = lesson.status === 'planned';
   elements.deleteLessonBtn.style.display = canDelete ? 'block' : 'none';
 
   elements.lessonModal.classList.remove('hidden');
@@ -2223,10 +2340,6 @@ function setupEventListeners() {
     const lesson = state.lessons.find(l => String(l.id) === String(state.editingLessonId));
     if (!lesson) return;
 
-    if (!state.isEditMode) {
-      showToast('Видалення уроків доступне лише в режимі редагування (Налаштування).', 'error');
-      return;
-    }
     if (lesson.status !== 'planned') {
       showToast('Видаляти можна лише заплановані уроки.', 'error');
       return;
