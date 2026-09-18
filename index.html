@@ -59,8 +59,9 @@
     * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body { background: var(--bg); margin: 0; padding: 16px; color: var(--text); transition: background 0.2s, color 0.2s; }
 
-    .header { position: sticky; top: 0; z-index: 500; background: var(--bg); display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
-    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; justify-content: space-between; }
+    .header { position: sticky; top: 0; z-index: 500; background: var(--bg); display: flex; flex-direction: column; align-items: stretch; margin-bottom: 16px; gap: 8px; padding: 8px 0; }
+    .controls { display: flex; flex-direction: column; gap: 8px; align-items: stretch; width: 100%; }
+    .controls > .date-group, .controls > .view-group, .controls > .filter-group, .controls > .action-buttons-row { width: 100%; justify-content: center; }
 
     .date-group, .view-group, .filter-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .filter-group { width: 100%; justify-content: flex-start; }
@@ -209,6 +210,14 @@
 
     .backup-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--surface-alt); flex-wrap: wrap; }
 
+    /* Контекстне меню уроку/слоту */
+    .context-menu { position: fixed; z-index: 3000; min-width: 210px; padding: 5px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 12px 30px var(--shadow); }
+    .context-menu.hidden { display: none; }
+    .context-menu button { display: block; width: 100%; text-align: left; border: 0; border-radius: 6px; padding: 9px 10px; background: transparent; color: var(--text); font-size: 0.85rem; }
+    .context-menu button:hover { background: var(--surface-alt); }
+    .context-menu button.danger-item { color: var(--danger); }
+    .context-menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+
     /* Toast-повідомлення */
     #toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; align-items: center; width: 90%; max-width: 420px; }
     .toast { background: var(--text-strong); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.25); opacity: 0; transform: translateY(10px); transition: opacity 0.2s, transform 0.2s; width: 100%; text-align: center; }
@@ -282,6 +291,13 @@
 
   <div class="calendar-container">
     <div id="calendar-grid"></div>
+  </div>
+
+  <div id="lesson-context-menu" class="context-menu hidden" role="menu" aria-label="Контекстне меню">
+    <button id="context-menu-edit" type="button">✏️ Редагувати урок</button>
+    <button id="context-menu-delete" type="button" class="danger-item">🗑 Видалити урок</button>
+    <button id="context-menu-add" type="button">➕ Додати урок</button>
+    <button id="context-menu-toggle" type="button">🔒 Змінити доступність слоту</button>
   </div>
 
   <!-- Модальне вікно Налаштування -->
