@@ -22,13 +22,29 @@ const state = {
 const els = {};
 
 function $(id){return document.getElementById(id);}
-function cache(){[
-  'schedule-container','current-week-display','prev-week-btn','next-week-btn','today-btn','theme-toggle-btn',
-  'page-title','page-subtitle','toast-container','confirm-modal','confirm-modal-message',
-  'confirm-modal-cancel-btn','confirm-modal-ok-btn','reschedule-banner','reschedule-banner-text',
-  'reschedule-banner-cancel-btn','lesson-detail-modal','lesson-detail-title','lesson-detail-body',
-  'lesson-detail-close-btn','lesson-detail-reschedule-btn'
-].forEach(id=>els[id]=$(id));}
+function cache(){
+  els.scheduleContainer=$('schedule-container');
+  els.currentWeekDisplay=$('current-week-display');
+  els.prevWeekBtn=$('prev-week-btn');
+  els.nextWeekBtn=$('next-week-btn');
+  els.todayBtn=$('today-btn');
+  els.themeToggleBtn=$('theme-toggle-btn');
+  els.pageTitle=$('page-title');
+  els.pageSubtitle=$('page-subtitle');
+  els.toastContainer=$('toast-container');
+  els.confirmModal=$('confirm-modal');
+  els.confirmModalMessage=$('confirm-modal-message');
+  els.confirmModalCancelBtn=$('confirm-modal-cancel-btn');
+  els.confirmModalOkBtn=$('confirm-modal-ok-btn');
+  els.rescheduleBanner=$('reschedule-banner');
+  els.rescheduleBannerText=$('reschedule-banner-text');
+  els.rescheduleBannerCancelBtn=$('reschedule-banner-cancel-btn');
+  els.lessonDetailModal=$('lesson-detail-modal');
+  els.lessonDetailTitle=$('lesson-detail-title');
+  els.lessonDetailBody=$('lesson-detail-body');
+  els.lessonDetailCloseBtn=$('lesson-detail-close-btn');
+  els.lessonDetailRescheduleBtn=$('lesson-detail-reschedule-btn');
+}
 
 function toast(message,type,duration){
   const t=document.createElement('div');t.className='toast '+(type||'info');t.textContent=message;els.toastContainer.appendChild(t);
