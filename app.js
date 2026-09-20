@@ -26,8 +26,51 @@ function cache(){
 function createAuthGate(){
   const gate=document.createElement('div');gate.id='teacher-auth-gate';
   gate.style.cssText='position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:#f8fafc;';
-  gate.innerHTML='<div style="width:min(420px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.12);"><h2 style="margin:0 0 8px;color:#0f172a;">Вхід викладача</h2><p style="margin:0 0 18px;color:#64748b;font-size:.9rem;">Увійдіть через Supabase Auth, щоб відкрити V2-розклад.</p><div style="display:flex;flex-direction:column;gap:10px;"><label style="font-size:.85rem;font-weight:700;color:#334155;">Email<input id="teacher-email" type="email" autocomplete="username" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><label style="font-size:.85rem;font-weight:700;color:#334155;">Пароль<input id="teacher-password" type="password" autocomplete="current-password" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><button id="teacher-login-btn" class="primary" type="button" style="padding:11px 14px;">Увійти</button><div id="teacher-login-message" style="min-height:20px;font-size:.82rem;color:#b91c1c;"></div></div></div>';
+  gate.innerHTML='<div style="width:min(420px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.12);"><div id="teacher-login-panel"><h2 style="margin:0 0 8px;color:#0f172a;">Вхід викладача</h2><p style="margin:0 0 18px;color:#64748b;font-size:.9rem;">Увійдіть через Supabase Auth, щоб відкрити V2-розклад.</p><div style="display:flex;flex-direction:column;gap:10px;"><label style="font-size:.85rem;font-weight:700;color:#334155;">Email<input id="teacher-email" type="email" autocomplete="username" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><label style="font-size:.85rem;font-weight:700;color:#334155;">Пароль<input id="teacher-password" type="password" autocomplete="current-password" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><button id="teacher-login-btn" class="primary" type="button" style="padding:11px 14px;">Увійти</button><button id="teacher-forgot-btn" type="button" style="padding:10px 14px;">Забули пароль?</button><div id="teacher-login-message" style="min-height:20px;font-size:.82rem;color:#b91c1c;"></div></div></div><div id="teacher-recovery-panel" style="display:none;"><h2 style="margin:0 0 8px;color:#0f172a;">Відновлення пароля</h2><p style="margin:0 0 18px;color:#64748b;font-size:.9rem;">Задайте новий пароль для входу викладача.</p><div style="display:flex;flex-direction:column;gap:10px;"><label style="font-size:.85rem;font-weight:700;color:#334155;">Новий пароль<input id="teacher-new-password" type="password" autocomplete="new-password" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><label style="font-size:.85rem;font-weight:700;color:#334155;">Повторіть новий пароль<input id="teacher-new-password-confirm" type="password" autocomplete="new-password" style="width:100%;margin-top:5px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;"></label><button id="teacher-update-password-btn" class="primary" type="button" style="padding:11px 14px;">Зберегти новий пароль</button><button id="teacher-recovery-cancel-btn" type="button" style="padding:10px 14px;">До входу</button><div id="teacher-recovery-message" style="min-height:20px;font-size:.82rem;color:#b91c1c;"></div></div></div></div>';
   document.body.insertBefore(gate,document.body.firstChild);return gate;
+}
+function isRecoveryRedirect(){
+  const p=new URLSearchParams(window.location.hash.replace(/^#/,''));
+  return p.get('type')==='recovery';
+}
+function showLoginPanel(gate,message){
+  const login=$('teacher-login-panel'),recovery=$('teacher-recovery-panel'),msg=$('teacher-login-message');
+  if(login)login.style.display='block';if(recovery)recovery.style.display='none';if(msg)msg.textContent=message||'';
+}
+function showRecoveryPanel(gate){
+  const login=$('teacher-login-panel'),recovery=$('teacher-recovery-panel'),msg=$('teacher-recovery-message');
+  if(login)login.style.display='none';if(recovery)recovery.style.display='block';if(msg)msg.textContent='';
+}
+function recoveryRedirectUrl(){
+  const u=new URL(window.location.href);u.hash='';u.search='';return u.toString();
+}
+async function requestPasswordRecovery(){
+  const email=$('teacher-email'),msg=$('teacher-login-message'),button=$('teacher-forgot-btn');
+  const value=email?email.value.trim():'';
+  if(!value){if(msg)msg.textContent='Спочатку введіть email.';email?.focus();return;}
+  if(button)button.disabled=true;if(msg)msg.textContent='Надсилання листа...';
+  try{
+    const r=await db.auth.resetPasswordForEmail(value,{redirectTo:recoveryRedirectUrl()});
+    if(r.error)throw r.error;
+    if(msg)msg.textContent='Лист для скидання пароля надіслано. Перевірте пошту.';
+  }catch(e){console.error(e);if(msg)msg.textContent=e.message||'Не вдалося надіслати лист для скидання пароля.';}
+  finally{if(button)button.disabled=false;}
+}
+async function updateRecoveredPassword(gate){
+  const p=$('teacher-new-password'),c=$('teacher-new-password-confirm'),msg=$('teacher-recovery-message'),button=$('teacher-update-password-btn');
+  const value=p?p.value:'';
+  if(!value){if(msg)msg.textContent='Введіть новий пароль.';return;}
+  if(value.length<6){if(msg)msg.textContent='Пароль має містити щонайменше 6 символів.';return;}
+  if(value!==((c&&c.value)||'')){if(msg)msg.textContent='Паролі не збігаються.';return;}
+  if(button)button.disabled=true;if(msg)msg.textContent='Збереження нового пароля...';
+  try{
+    const session=(await db.auth.getSession()).data.session;
+    if(!session)throw new Error('Сесію відновлення не знайдено. Запросіть новий лист для скидання пароля.');
+    const r=await db.auth.updateUser({password:value});if(r.error)throw r.error;
+    await db.auth.signOut();window.history.replaceState({},document.title,window.location.pathname);
+    showLoginPanel(gate,'Пароль успішно змінено. Увійдіть із новим паролем.');
+  }catch(e){console.error(e);if(msg)msg.textContent=e.message||'Не вдалося змінити пароль.';}
+  finally{if(button)button.disabled=false;}
 }
 function appShell(){
   let shell=$('teacher-app-shell');if(shell)return shell;
@@ -310,7 +353,17 @@ async function start(gate){
   catch(e){setVisible(false);gate.style.display='flex';const m=$('teacher-login-message');if(m)m.textContent=e.message||'Не вдалося відкрити V2-розклад.';}
 }
 document.addEventListener('DOMContentLoaded',async()=>{
-  const gate=createAuthGate();setVisible(false);const email=$('teacher-email'),password=$('teacher-password'),button=$('teacher-login-btn'),msg=$('teacher-login-message');
+  const gate=createAuthGate();setVisible(false);
+  const email=$('teacher-email'),password=$('teacher-password'),button=$('teacher-login-btn'),msg=$('teacher-login-message'),forgot=$('teacher-forgot-btn'),recoveryCancel=$('teacher-recovery-cancel-btn'),recoveryUpdate=$('teacher-update-password-btn');
   async function login(){if(!db){msg.textContent='Supabase-клієнт недоступний.';return;}button.disabled=true;msg.textContent='Вхід...';try{const r=await db.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(r.error)throw r.error;msg.textContent='';await start(gate);}catch(e){console.error(e);msg.textContent=e.message||'Не вдалося увійти.';}finally{button.disabled=false;}}
-  button.onclick=login;[email,password].forEach(x=>x.addEventListener('keydown',e=>{if(e.key==='Enter')login();}));if(db){const r=await db.auth.getUser();if(r.data&&r.data.user)await start(gate);}
+  button.onclick=login;
+  forgot.onclick=()=>requestPasswordRecovery();
+  recoveryCancel.onclick=()=>{window.history.replaceState({},document.title,window.location.pathname);showLoginPanel(gate);};
+  recoveryUpdate.onclick=()=>updateRecoveredPassword(gate);
+  [email,password].forEach(x=>x.addEventListener('keydown',e=>{if(e.key==='Enter')login();}));
+  if(db){
+    db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showRecoveryPanel(gate);});
+    if(isRecoveryRedirect())showRecoveryPanel(gate);
+    else{const r=await db.auth.getUser();if(r.data&&r.data.user)await start(gate);}
+  }
 });
