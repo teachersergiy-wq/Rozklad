@@ -103,7 +103,12 @@ function esc(v){const d=document.createElement('div');d.textContent=v==null?'':S
 
 async function authUser(){
   if(!db)throw new Error('Supabase-клієнт не ініціалізовано.');
-  const r=await db.auth.getUser();if(r.error)throw r.error;if(!r.data||!r.data.user)throw new Error('Потрібен вхід викладача.');state.user=r.data.user;return state.user;
+  const r=await db.auth.getSession();
+  if(r.error)throw r.error;
+  const user=r.data&&r.data.session&&r.data.session.user;
+  if(!user)throw new Error('Потрібен вхід викладача.');
+  state.user=user;
+  return state.user;
 }
 async function loadV2(){
   await authUser();
