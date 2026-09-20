@@ -20,7 +20,7 @@ let el={};
 function $(id){return document.getElementById(id);}
 function cache(){
   const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
-  el={};ids.forEach(id=>el[id]=$(id));
+  el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
 }
 
 function createAuthGate(){
@@ -369,6 +369,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
   if(db){
     db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showRecoveryPanel(gate);});
     if(isRecoveryRedirect())showRecoveryPanel(gate);
-    else{const r=await db.auth.getUser();if(r.data&&r.data.user)await start(gate);}
+    else{const r=await db.auth.getSession();if(r.error)console.error(r.error);if(r.data&&r.data.session&&r.data.session.user)await start(gate);}
   }
 });
