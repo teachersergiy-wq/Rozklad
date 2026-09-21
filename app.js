@@ -21,6 +21,42 @@ function $(id){return document.getElementById(id);}
 function cache(){
   const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
+  // Backward-compatible aliases used by navigation handlers.
+  el.prevBtn=el.prevDateBtn;
+  el.nextBtn=el.nextDateBtn;
+}
+
+function safeBind(key,eventName,handler){
+  try{
+    const node=el[key];
+    if(!node){console.error('UI binding skipped: missing '+key);return false;}
+    node[eventName]=handler;
+    return true;
+  }catch(e){
+    console.error('UI binding failed: '+key,e);
+    return false;
+  }
+}
+function safeDomBind(id,eventName,handler){
+  try{
+    const node=$(id);
+    if(!node){console.error('DOM binding skipped: missing '+id);return false;}
+    node[eventName]=handler;
+    return true;
+  }catch(e){
+    console.error('DOM binding failed: '+id,e);
+    return false;
+  }
+}
+function safeAddEventListener(node,eventName,handler,label){
+  try{
+    if(!node){console.error('Event listener skipped: missing '+(label||eventName));return false;}
+    node.addEventListener(eventName,handler);
+    return true;
+  }catch(e){
+    console.error('Event listener failed: '+(label||eventName),e);
+    return false;
+  }
 }
 
 function createAuthGate(){
@@ -335,40 +371,88 @@ function showContext(x,y,a){state.contextLessonId=a.lessonId?String(a.lessonId):
 function setupContext(){document.addEventListener('click',hideContext);document.addEventListener('scroll',hideContext,true);el.lessonContextMenu.addEventListener('click',e=>e.stopPropagation());el.contextMenuEdit.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)openEditLesson(id);};el.contextMenuDelete.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)deleteLesson(id);};el.contextMenuAdd.onclick=()=>{const s=state.contextSlot;hideContext();if(s)openAddLesson(s.dateISO,s.hour);};el.contextMenuToggle.onclick=()=>{const s=state.contextSlot;hideContext();if(s)toggleSlot(s.dateISO,s.hour);};}
 function setupModals(){document.addEventListener('keydown',e=>{if(e.key!=='Escape'&&e.key!=='Enter')return;const m=document.querySelector('.modal:not(.hidden)');if(!m)return;e.preventDefault();const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn,b=id?$(id):null;if(b)b.click();});document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target!==m||innerWidth>640)return;const id=m.dataset.cancelBtn,b=id?$(id):null;if(b)b.click();}));}
 function setupUI(){
-  el.themeToggleBtn.onclick=()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');el.settingsBtn.onclick=()=>el.settingsModal.classList.remove('hidden');el.closeSettingsModalBtn.onclick=()=>el.settingsModal.classList.add('hidden');el.editModeCheckbox.onchange=e=>{state.isEditMode=e.target.checked;render();};
-  el.modalAddLessonBtn.onclick=()=>{el.settingsModal.classList.add('hidden');openAddLesson();};el.modalManageStudentsBtn.onclick=()=>{el.settingsModal.classList.add('hidden');renderStudents();el.studentsModal.classList.remove('hidden');};
-  el.modalRequestsBtn.onclick=()=>{el.settingsModal.classList.add('hidden');renderRequests();el.requestsModal.classList.remove('hidden');};el.closeRequestsModalBtn.onclick=()=>el.requestsModal.classList.add('hidden');
-  el.modalReportsBtn.onclick=()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');};el.closeReportsModalBtn.onclick=()=>el.reportsModal.classList.add('hidden');el.reportPeriodSelect.onchange=()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none';el.generateReportBtn.onclick=generateReport;
-  el.modalIssuesBtn.onclick=()=>{el.settingsModal.classList.add('hidden');renderIssues();el.issuesModal.classList.remove('hidden');};el.closeIssuesModalBtn.onclick=()=>el.issuesModal.classList.add('hidden');
-  el.modalAuditLogBtn.onclick=()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');};el.closeAuditLogModalBtn.onclick=()=>el.auditLogModal.classList.add('hidden');
-  el.modalBackupsBtn.onclick=()=>{el.settingsModal.classList.add('hidden');renderBackups();el.backupsModal.classList.remove('hidden');};el.closeBackupsModalBtn.onclick=()=>el.backupsModal.classList.add('hidden');
-  el.studentsInfoBtn.onclick=()=>{renderStudentsPicker();el.studentsPickerModal.classList.remove('hidden');};el.closeStudentsPickerModalBtn.onclick=()=>el.studentsPickerModal.classList.add('hidden');el.closeStudentInfoModalBtn.onclick=()=>el.studentInfoModal.classList.add('hidden');el.studentInfoHistoryBtn.onclick=()=>renderStudentCompleted(state.currentInfoStudentId);el.studentInfoPlannedBtn.onclick=()=>renderStudentPlanned(state.currentInfoStudentId);
-  el.studentInfoCopyLinkBtn.onclick=async()=>{try{await navigator.clipboard.writeText(el.studentInfoLinkInput.value);toast('Персональне посилання скопійовано.','success');}catch(e){toast('Не вдалося скопіювати посилання.','error');}};
-  el.closeStudentsModalBtn.onclick=()=>el.studentsModal.classList.add('hidden');el.openAddStudentModalBtn.onclick=()=>{clearStudentForm();el.studentsModal.classList.add('hidden');el.addStudentModal.classList.remove('hidden');};el.closeAddStudentModalBtn.onclick=()=>{el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');};el.saveNewStudentBtn.onclick=addStudent;
-  el.lessonPaidSelect.onchange=paymentVisible;el.closeLessonModalBtn.onclick=()=>el.lessonModal.classList.add('hidden');el.saveLessonBtn.onclick=saveLesson;el.deleteLessonBtn.onclick=()=>{if(state.editingLessonId)deleteLesson(state.editingLessonId);};
-  el.viewDayBtn.onclick=()=>{state.view='day';render();};el.viewWeekBtn.onclick=()=>{state.view='week';render();};el.viewMonthBtn.onclick=()=>{state.view='month';render();};el.filterTypeSelect.onchange=e=>{state.filterType=e.target.value;render();};el.filterStudentSelect.onchange=e=>{state.filterStudentId=e.target.value;render();};el.todayBtn.onclick=()=>{state.currentDate=new Date();render();};
-  el.prevBtn.onclick=()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);render();};
-  el.nextBtn.onclick=()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);render();};
-  if(el.modalStudentLinkBtn)el.modalStudentLinkBtn.style.display='none';
-  if(!$('manual-backup-btn')){const b=document.createElement('button');b.id='manual-backup-btn';b.type='button';b.style.cssText='width:100%;padding:12px;';b.textContent='💾 Зробити бекап';b.onclick=takeBackup;el.modalBackupsBtn.parentElement.insertBefore(b,el.modalBackupsBtn);}
-  if(!$('logout-teacher-btn')){const b=document.createElement('button');b.id='logout-teacher-btn';b.type='button';b.className='danger';b.style.cssText='width:100%;padding:12px;';b.textContent='Вийти з акаунта викладача';b.onclick=async()=>{const r=await db.auth.signOut();if(r.error)dbFail(r.error);else{setVisible(false);$('teacher-auth-gate').style.display='flex';}};el.modalBackupsBtn.parentElement.appendChild(b);}
+  safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
+  safeBind('settingsBtn','onclick',()=>el.settingsModal.classList.remove('hidden'));
+  safeBind('closeSettingsModalBtn','onclick',()=>el.settingsModal.classList.add('hidden'));
+  safeBind('editModeCheckbox','onchange',e=>{state.isEditMode=e.target.checked;render();});
+  safeBind('modalAddLessonBtn','onclick',()=>{el.settingsModal.classList.add('hidden');openAddLesson();});
+  safeBind('modalManageStudentsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderStudents();el.studentsModal.classList.remove('hidden');});
+  safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderRequests();el.requestsModal.classList.remove('hidden');});
+  safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
+  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
+  safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
+  safeBind('reportPeriodSelect','onchange',()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none');
+  safeBind('generateReportBtn','onclick',generateReport);
+  safeBind('modalIssuesBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderIssues();el.issuesModal.classList.remove('hidden');});
+  safeBind('closeIssuesModalBtn','onclick',()=>el.issuesModal.classList.add('hidden'));
+  safeBind('modalAuditLogBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');});
+  safeBind('closeAuditLogModalBtn','onclick',()=>el.auditLogModal.classList.add('hidden'));
+  safeBind('modalBackupsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderBackups();el.backupsModal.classList.remove('hidden');});
+  safeBind('closeBackupsModalBtn','onclick',()=>el.backupsModal.classList.add('hidden'));
+  safeBind('studentsInfoBtn','onclick',()=>{renderStudentsPicker();el.studentsPickerModal.classList.remove('hidden');});
+  safeBind('closeStudentsPickerModalBtn','onclick',()=>el.studentsPickerModal.classList.add('hidden'));
+  safeBind('closeStudentInfoModalBtn','onclick',()=>el.studentInfoModal.classList.add('hidden'));
+  safeBind('studentInfoHistoryBtn','onclick',()=>renderStudentCompleted(state.currentInfoStudentId));
+  safeBind('studentInfoPlannedBtn','onclick',()=>renderStudentPlanned(state.currentInfoStudentId));
+  safeBind('studentInfoCopyLinkBtn','onclick',async()=>{try{await navigator.clipboard.writeText(el.studentInfoLinkInput.value);toast('Персональне посилання скопійовано.','success');}catch(e){toast('Не вдалося скопіювати посилання.','error');}});
+  safeBind('closeStudentsModalBtn','onclick',()=>el.studentsModal.classList.add('hidden'));
+  safeBind('openAddStudentModalBtn','onclick',()=>{clearStudentForm();el.studentsModal.classList.add('hidden');el.addStudentModal.classList.remove('hidden');});
+  safeBind('closeAddStudentModalBtn','onclick',()=>{el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');});
+  safeBind('saveNewStudentBtn','onclick',addStudent);
+  safeBind('lessonPaidSelect','onchange',paymentVisible);
+  safeBind('closeLessonModalBtn','onclick',()=>el.lessonModal.classList.add('hidden'));
+  safeBind('saveLessonBtn','onclick',saveLesson);
+  safeBind('deleteLessonBtn','onclick',()=>{if(state.editingLessonId)deleteLesson(state.editingLessonId);});
+  safeBind('viewDayBtn','onclick',()=>{state.view='day';render();});
+  safeBind('viewWeekBtn','onclick',()=>{state.view='week';render();});
+  safeBind('viewMonthBtn','onclick',()=>{state.view='month';render();});
+  safeBind('filterTypeSelect','onchange',e=>{state.filterType=e.target.value;render();});
+  safeBind('filterStudentSelect','onchange',e=>{state.filterStudentId=e.target.value;render();});
+  safeBind('todayBtn','onclick',()=>{state.currentDate=new Date();render();});
+  safeBind('prevBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);render();});
+  safeBind('nextBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);render();});
+  try{if(el.modalStudentLinkBtn)el.modalStudentLinkBtn.style.display='none';}catch(e){console.error('UI setup failed: modalStudentLinkBtn',e);}
+  try{
+    if(!$('manual-backup-btn')){
+      const b=document.createElement('button');b.id='manual-backup-btn';b.type='button';b.style.cssText='width:100%;padding:12px;';b.textContent='💾 Зробити бекап';b.onclick=takeBackup;
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.insertBefore(b,el.modalBackupsBtn);else console.error('UI setup skipped: modalBackupsBtn parent missing');
+    }
+  }catch(e){console.error('UI binding failed: manual-backup-btn',e);}
+  try{
+    if(!$('logout-teacher-btn')){
+      const b=document.createElement('button');b.id='logout-teacher-btn';b.type='button';b.className='danger';b.style.cssText='width:100%;padding:12px;';b.textContent='Вийти з акаунта викладача';
+      b.onclick=async()=>{const r=await db.auth.signOut();if(r.error)dbFail(r.error);else{setVisible(false);$('teacher-auth-gate').style.display='flex';}};
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.appendChild(b);else console.error('UI setup skipped: logout container missing');
+    }
+  }catch(e){console.error('UI binding failed: logout-teacher-btn',e);}
 }
 async function start(gate){
   try{await authUser();gate.style.display='none';setVisible(true);cache();theme(localStorage.getItem(THEME_KEY)||'light');setupUI();setupModals();setupContext();await loadV2();renderSwatches();render();await autoComplete();render();}
   catch(e){setVisible(false);gate.style.display='flex';const m=$('teacher-login-message');if(m)m.textContent=e.message||'Не вдалося відкрити V2-розклад.';}
 }
 document.addEventListener('DOMContentLoaded',async()=>{
-  const gate=createAuthGate();setVisible(false);
+  let gate;
+  try{gate=createAuthGate();setVisible(false);}catch(e){console.error('Auth gate initialization failed',e);return;}
   const email=$('teacher-email'),password=$('teacher-password'),button=$('teacher-login-btn'),msg=$('teacher-login-message'),forgot=$('teacher-forgot-btn'),recoveryCancel=$('teacher-recovery-cancel-btn'),recoveryUpdate=$('teacher-update-password-btn');
-  async function login(){if(!db){msg.textContent='Supabase-клієнт недоступний.';return;}button.disabled=true;msg.textContent='Вхід...';try{const r=await db.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(r.error)throw r.error;msg.textContent='';await start(gate);}catch(e){console.error(e);msg.textContent=e.message||'Не вдалося увійти.';}finally{button.disabled=false;}}
-  button.onclick=login;
-  forgot.onclick=()=>requestPasswordRecovery();
-  recoveryCancel.onclick=()=>{window.history.replaceState({},document.title,window.location.pathname);showLoginPanel(gate);};
-  recoveryUpdate.onclick=()=>updateRecoveredPassword(gate);
-  [email,password].forEach(x=>x.addEventListener('keydown',e=>{if(e.key==='Enter')login();}));
-  if(db){
-    db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showRecoveryPanel(gate);});
-    if(isRecoveryRedirect())showRecoveryPanel(gate);
-    else{const r=await db.auth.getSession();if(r.error)console.error(r.error);if(r.data&&r.data.session&&r.data.session.user)await start(gate);}
+  async function login(){
+    if(!db){if(msg)msg.textContent='Supabase-клієнт недоступний.';return;}
+    try{
+      if(button)button.disabled=true;if(msg)msg.textContent='Вхід...';
+      const r=await db.auth.signInWithPassword({email:email?.value.trim()||'',password:password?.value||''});
+      if(r.error)throw r.error;if(msg)msg.textContent='';await start(gate);
+    }catch(e){console.error(e);if(msg)msg.textContent=e.message||'Не вдалося увійти.';}
+    finally{if(button)button.disabled=false;}
   }
+  safeDomBind('teacher-login-btn','onclick',login);
+  safeDomBind('teacher-forgot-btn','onclick',()=>requestPasswordRecovery());
+  safeDomBind('teacher-recovery-cancel-btn','onclick',()=>{window.history.replaceState({},document.title,window.location.pathname);showLoginPanel(gate);});
+  safeDomBind('teacher-update-password-btn','onclick',()=>updateRecoveredPassword(gate));
+  [email,password].forEach((node,i)=>safeAddEventListener(node,'keydown',e=>{if(e.key==='Enter')login();},i===0?'teacher-email':'teacher-password'));
+  try{
+    if(db){
+      db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showRecoveryPanel(gate);});
+      if(isRecoveryRedirect())showRecoveryPanel(gate);
+      else{const r=await db.auth.getSession();if(r.error)console.error(r.error);if(r.data&&r.data.session&&r.data.session.user)await start(gate);}
+    }
+  }catch(e){console.error('Auth bootstrap failed',e);}
 });
