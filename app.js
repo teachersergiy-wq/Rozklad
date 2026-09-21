@@ -13,14 +13,14 @@ const AUTO_COMPLETE_MS=48*60*60*1000, MAX_AUDIT=300, THEME_KEY='schedule_theme_p
 const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],currentDate:new Date(),view:'day',filterType:'all',
-  filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,
+  filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
   selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false
 };
 let el={};
 
 function $(id){return document.getElementById(id);}
 function cache(){
-  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
+  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
@@ -181,10 +181,11 @@ function dateDisplay(){
   const s=document.createElement('span');s.className='date-display-big';
   if(state.view==='day')s.textContent=state.currentDate.toLocaleDateString('uk-UA',{day:'numeric',month:'long'});
   else if(state.view==='week'){const a=monday(state.currentDate),b=new Date(a);b.setDate(a.getDate()+6);s.textContent=a.getDate()+' '+MONTHS[a.getMonth()]+' - '+b.getDate()+' '+MONTHS[b.getMonth()];}
-  else{s.textContent=state.currentDate.toLocaleDateString('uk-UA',{month:'long'});const y=document.createElement('span');y.className='date-display-year';y.textContent=state.currentDate.getFullYear();el.currentDateDisplay.append(s,y);return;}
+  else if(state.view==='month'){s.textContent=state.currentDate.toLocaleDateString('uk-UA',{month:'long'});const y=document.createElement('span');y.className='date-display-year';y.textContent=state.currentDate.getFullYear();el.currentDateDisplay.append(s,y);return;}
+  else{s.textContent=String(state.currentDate.getFullYear());}
   el.currentDateDisplay.appendChild(s);
 }
-function viewButtons(){[el.viewDayBtn,el.viewWeekBtn,el.viewMonthBtn].forEach(x=>x.classList.remove('active'));el['view'+state.view.charAt(0).toUpperCase()+state.view.slice(1)+'Btn'].classList.add('active');}
+function viewButtons(){[el.viewDayBtn,el.viewWeekBtn,el.viewMonthBtn,el.viewYearBtn].forEach(x=>x.classList.remove('active'));const b=el['view'+state.view.charAt(0).toUpperCase()+state.view.slice(1)+'Btn'];if(b)b.classList.add('active');}
 function populateLessonTimeSelects(){
   if(!el.lessonHourSelect||!el.lessonMinuteSelect)return;
   el.lessonHourSelect.innerHTML='';
@@ -298,9 +299,33 @@ function renderMonth(){
   }
   const cells=start+total;for(let i=cells;i<Math.ceil(cells/7)*7;i++){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(i-cells+1)+'</div>';el.calendarGrid.appendChild(x);}
 }
+function renderYear(){
+  el.calendarGrid.className='year-grid';el.calendarGrid.innerHTML='';
+  const y=state.currentDate.getFullYear();
+  for(let m=0;m<12;m++){
+    const card=document.createElement('section');card.className='year-month';
+    const title=document.createElement('h3');title.className='year-month-title';title.textContent=new Date(y,m,1).toLocaleDateString('uk-UA',{month:'long'});card.appendChild(title);
+    const weekdays=document.createElement('div');weekdays.className='year-weekdays';DAYS.forEach(d=>{const x=document.createElement('div');x.textContent=d;weekdays.appendChild(x);});card.appendChild(weekdays);
+    const grid=document.createElement('div');grid.className='year-days';
+    const first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate();
+    for(let i=0;i<start;i++){const x=document.createElement('div');x.className='year-day empty';grid.appendChild(x);}
+    for(let day=1;day<=total;day++){
+      const date=iso(new Date(y,m,day)),lessons=state.lessons.filter(l=>l.date===date),completed=lessons.filter(l=>l.status==='completed').length,planned=lessons.filter(l=>l.status==='planned').length;
+      const x=document.createElement('div');x.className='year-day '+(today(new Date(y,m,day))?'today':'');x.title=prettyDate(date);
+      const n=document.createElement('div');n.className='year-day-num';n.textContent=day;x.appendChild(n);
+      const counts=document.createElement('div');counts.className='year-counts';
+      if(completed){const q=document.createElement('span');q.className='year-count completed';q.textContent=completed;counts.appendChild(q);}
+      if(planned){const q=document.createElement('span');q.className='year-count planned';q.textContent=planned;counts.appendChild(q);}
+      x.appendChild(counts);grid.appendChild(x);
+    }
+    while(grid.children.length%7!==0){const x=document.createElement('div');x.className='year-day empty';grid.appendChild(x);}
+    card.appendChild(grid);el.calendarGrid.appendChild(card);
+  }
+}
 function render(){
   dateDisplay();viewButtons();selects();badges();
-  if(state.view==='month')renderMonth();
+  if(state.view==='year')renderYear();
+  else if(state.view==='month')renderMonth();
   else if(state.view==='week'){const s=monday(state.currentDate),ds=[];for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);ds.push(d);}renderColumns(ds);}
   else renderColumns([new Date(state.currentDate)]);
 }
@@ -453,11 +478,13 @@ function setupUI(){
   safeBind('viewDayBtn','onclick',()=>{state.view='day';render();});
   safeBind('viewWeekBtn','onclick',()=>{state.view='week';render();});
   safeBind('viewMonthBtn','onclick',()=>{state.view='month';render();});
+  safeBind('viewYearBtn','onclick',()=>{state.view='year';render();});
+  safeBind('filterToggleBtn','onclick',()=>{state.filterOpen=!state.filterOpen;if(el.filterPanel)el.filterPanel.classList.toggle('hidden',!state.filterOpen);});
   safeBind('filterTypeSelect','onchange',e=>{state.filterType=e.target.value;render();});
   safeBind('filterStudentSelect','onchange',e=>{state.filterStudentId=e.target.value;render();});
   safeBind('todayBtn','onclick',()=>{state.currentDate=new Date();render();});
-  safeBind('prevBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);render();});
-  safeBind('nextBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);render();});
+  safeBind('prevBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);else state.currentDate=new Date(state.currentDate.getFullYear()-1,0,1);render();});
+  safeBind('nextBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);else state.currentDate=new Date(state.currentDate.getFullYear()+1,0,1);render();});
   try{if(el.modalStudentLinkBtn)el.modalStudentLinkBtn.style.display='none';}catch(e){console.error('UI setup failed: modalStudentLinkBtn',e);}
   try{
     if(!$('manual-backup-btn')){
