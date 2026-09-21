@@ -64,6 +64,17 @@
     .slot-free { border: 1px dashed var(--free-border); border-radius: 6px; color: var(--free-text); font-size: 0.8rem; min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--free-bg); font-weight: 700; text-align: center; padding: 6px; }
     .slot-free.bookable { cursor: pointer; }
     .slot-free.bookable:hover { filter: brightness(0.95); }
+    .slot-free-label { font-weight: 800; }
+    .hour-picker { margin-top: 8px; padding: 9px; border-radius: 8px; background: var(--surface-alt); border: 1px solid var(--border-strong); text-align: left; }
+    .hour-picker-title { font-size: 0.78rem; font-weight: 800; color: var(--text-strong); margin-bottom: 7px; }
+    .hour-choice-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .hour-choice { min-width: 64px; padding: 7px 9px; font-size: 0.78rem; }
+    .hour-choice.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .hour-picker-selected { margin-top: 7px; min-height: 17px; color: var(--text-muted); font-size: 0.76rem; font-weight: 700; }
+    .hour-picker-submit { width: 100%; margin-top: 7px; }
+    .hour-picker-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hour-picker-cancel { width: 100%; margin-top: 6px; font-size: 0.76rem; padding: 6px 9px; }
+    .hour-picker-empty { color: var(--text-muted); font-size: 0.76rem; font-weight: 700; }
     .slot-free.reschedule-target { border: 2px dashed var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
     .slot-pending { border: 1px dashed var(--pending-border); border-radius: 6px; color: var(--pending-text); font-size: 0.75rem; min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--pending-bg); font-weight: 700; text-align: center; padding: 6px; }
     .no-slots { color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 8px; }
@@ -179,6 +190,6 @@
     </div>
   </div>
 
-  <script src="student-schedule.js?v=20260921-2"></script>
+  <script src="student-schedule.js?v=20260921-3"></script>
 </body>
 </html>
