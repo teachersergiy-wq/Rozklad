@@ -255,6 +255,29 @@ function attachFree(n,date,h,past){
   n.ondragover=e=>{e.preventDefault();n.classList.add('drag-over');};n.ondragleave=()=>n.classList.remove('drag-over');
   n.ondrop=async e=>{e.preventDefault();n.classList.remove('drag-over');const id=e.dataTransfer.getData('text/plain');if(id)await moveLesson(id,date,time(h));};
 }
+function pendingRequestsForSlot(date,h){
+  const t=time(h);
+  return state.bookingRequests.filter(r=>r.status==='pending'&&r.date===date&&r.time===t).map(r=>{
+    const s=state.students.find(x=>x.id===r.studentId);
+    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null};
+  });
+}
+function pendingRequestsForRange(date,start,end){
+  const out=[];for(let h=start;h<end;h++)out.push(...pendingRequestsForSlot(date,h));return out;
+}
+function attachPendingRequestInfo(node,requests){
+  if(!requests.length)return;
+  node.classList.add('has-pending-request');
+  node.dataset.pendingRequestCount=String(requests.length);
+  node.dataset.pendingRequestIds=JSON.stringify(requests.map(r=>r.id));
+  const details=requests.map(r=>r.type==='reschedule'
+    ? r.studentName+' — перенесення з '+prettyDate(r.oldDate||'')+' '+(r.oldTime||'')
+    : r.studentName+' — запис');
+  const label='Є заявка(и), що очікують: '+details.join('; ');
+  node.dataset.pendingRequestDetails=JSON.stringify(requests);
+  node.setAttribute('aria-label',label);
+  node.title=label;
+}
 function dayHeader(d){
   const h=document.createElement('div');h.className='day-header '+(today(d)?'today':'');
   const n=document.createElement('span');n.className='day-header-name';n.textContent=DAYS[(d.getDay()+6)%7];
@@ -283,8 +306,8 @@ function renderColumns(days){
     });flush();
     if(!out.length){const x=document.createElement('div');x.style.cssText='color:var(--text-muted);font-size:.78rem;text-align:center;padding:8px;';x.textContent=state.filterType==='all'?'Немає вільних годин':'Немає записів за фільтром';col.appendChild(x);}
     out.forEach(e=>{if(e.type==='lesson'){e.lessons.forEach(l=>col.appendChild(lessonCard(l)));return;}
-      if(e.type==='range'){const x=document.createElement('div');x.className='slot-free slot-range';x.textContent=time(e.start)+'–'+time(e.end)+' Вільно';attachFree(x,date,e.start,pastDate(date));col.appendChild(x);return;}
-      if(e.type==='hour'){const x=document.createElement('div');x.className='slot-free';x.textContent=time(e.hour)+' Вільно';attachFree(x,date,e.hour,pastDate(date));col.appendChild(x);return;}
+      if(e.type==='range'){const x=document.createElement('div');x.className='slot-free slot-range';x.textContent=time(e.start)+'–'+time(Math.max(e.start,e.end-1))+' Вільно';attachPendingRequestInfo(x,pendingRequestsForRange(date,e.start,e.end));attachFree(x,date,e.start,pastDate(date));col.appendChild(x);return;}
+      if(e.type==='hour'){const x=document.createElement('div');x.className='slot-free';x.textContent=time(e.hour)+' Вільно';attachPendingRequestInfo(x,pendingRequestsForSlot(date,e.hour));attachFree(x,date,e.hour,pastDate(date));col.appendChild(x);return;}
       const x=document.createElement('div');x.className='slot-unavailable';x.textContent=time(e.hour)+' Недоступно';x.style.cursor='pointer';x.onclick=()=>toggleSlot(date,e.hour);x.oncontextmenu=ev=>{ev.preventDefault();ev.stopPropagation();showContext(ev.clientX,ev.clientY,{dateISO:date,hour:e.hour});};col.appendChild(x);
     });wrap.appendChild(col);});el.calendarGrid.appendChild(wrap);
 }
