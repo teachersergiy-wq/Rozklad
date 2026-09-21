@@ -448,7 +448,7 @@ function setupUI(){
   }catch(e){console.error('UI binding failed: logout-teacher-btn',e);}
 }
 async function start(gate){
-  try{await authUser();gate.style.display='none';setVisible(true);cache();theme(localStorage.getItem(THEME_KEY)||'light');setupUI();setupModals();setupContext();await loadV2();renderSwatches();render();await autoComplete();render();}
+  try{await authUser();gate.style.display='none';setVisible(true);cache();populateLessonTimeSelects();theme(localStorage.getItem(THEME_KEY)||'light');setupUI();setupModals();setupContext();await loadV2();renderSwatches();render();await autoComplete();render();}
   catch(e){setVisible(false);gate.style.display='flex';const m=$('teacher-login-message');if(m)m.textContent=e.message||'Не вдалося відкрити V2-розклад.';}
 }
 document.addEventListener('DOMContentLoaded',async()=>{
