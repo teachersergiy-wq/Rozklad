@@ -107,6 +107,15 @@
     .reschedule-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--pending-bg); border: 1px solid var(--pending-border); color: var(--pending-text); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; max-width: 720px; margin-left: auto; margin-right: auto; font-size: 0.85rem; font-weight: 600; }
     .reschedule-banner.hidden { display: none; }
     .archive-notice { max-width: 720px; margin: 0 auto 14px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--pending-border); background: var(--pending-bg); color: var(--pending-text); font-size: 0.86rem; font-weight: 700; text-align: center; }
+    .pending-requests-panel { max-width: 720px; margin: 0 auto 14px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+    .pending-requests-panel.hidden { display: none; }
+    .pending-requests-header { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; font-size: 0.8rem; }
+    .pending-requests-header span { color: var(--text-muted); font-weight: 600; }
+    .pending-request-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px dashed var(--border); }
+    .pending-request-info { min-width: 0; }
+    .pending-request-title { font-size: 0.82rem; font-weight: 800; color: var(--text-strong); line-height: 1.35; }
+    .pending-request-meta { margin-top: 2px; font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+    .pending-request-cancel { flex-shrink: 0; padding: 6px 10px; font-size: 0.78rem; }
     .archive-notice.hidden { display: none; }
     .reschedule-banner button { flex-shrink: 0; }
 
@@ -130,6 +139,9 @@
       /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
       .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .date-display-big { font-size: 1.3rem; }
+      .pending-requests-header { align-items: flex-start; flex-direction: column; }
+      .pending-request-item { align-items: flex-start; flex-direction: column; }
+      .pending-request-cancel { width: 100%; }
     }
   </style>
 </head>
@@ -153,6 +165,15 @@
   <div id="archive-notice" class="archive-notice hidden" role="status" aria-live="polite">
     Ваш доступ до запису й перенесення уроків призупинено. Зверніться до вчителя для відновлення можливості надсилати запити.
   </div>
+
+  <div id="pending-requests-panel" class="pending-requests-panel hidden" role="region" aria-label="Мої запити на розгляді">
+    <div class="pending-requests-header">
+      <strong>Мої запити на розгляді</strong>
+      <span>Їх можна відкликати до рішення викладача.</span>
+    </div>
+    <div id="pending-requests-list"></div>
+  </div>
+
 
   <div id="reschedule-banner" class="reschedule-banner hidden">
     <span id="reschedule-banner-text"></span>
@@ -195,6 +216,6 @@
     </div>
   </div>
 
-  <script src="student-schedule.js?v=20260921-4"></script>
+  <script src="student-schedule.js?v=20260921-5"></script>
 </body>
 </html>
