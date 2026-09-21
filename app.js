@@ -14,13 +14,13 @@ const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],currentDate:new Date(),view:'day',filterType:'all',
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
-  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,bulkSelectedLessonIds:new Set()
+  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,bulkSelectedLessonIds:new Set()
 };
 let el={};
 
 function $(id){return document.getElementById(id);}
 function cache(){
-  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn modal-bulk-lessons-btn bulk-lessons-modal close-bulk-lessons-modal-btn bulk-mode-add bulk-mode-manage bulk-add-panel bulk-manage-panel bulk-add-student-select bulk-add-date-input bulk-add-hour-select bulk-add-minute-select bulk-add-status-select bulk-add-repeat-select bulk-add-paid-select bulk-add-payment-group bulk-add-paid-amount bulk-add-paid-date bulk-add-paid-method bulk-add-topic bulk-add-homework bulk-add-submit bulk-from-date bulk-to-date bulk-student-filter bulk-refresh-list bulk-select-all bulk-clear-selection bulk-selected-count bulk-lessons-list bulk-edit-fields bulk-edit-student bulk-edit-date-mode bulk-edit-set-date-group bulk-edit-set-date bulk-edit-shift-group bulk-edit-shift-days bulk-edit-hour bulk-edit-minute bulk-edit-status bulk-edit-paid bulk-edit-paid-amount bulk-edit-paid-date bulk-edit-paid-method bulk-edit-repeat bulk-edit-topic bulk-edit-homework bulk-apply-edit bulk-delete-selected student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
+  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list requests-student-filter close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn modal-bulk-lessons-btn bulk-lessons-modal close-bulk-lessons-modal-btn bulk-mode-add bulk-mode-manage bulk-add-panel bulk-manage-panel bulk-add-student-select bulk-add-date-input bulk-add-hour-select bulk-add-minute-select bulk-add-status-select bulk-add-repeat-select bulk-add-paid-select bulk-add-payment-group bulk-add-paid-amount bulk-add-paid-date bulk-add-paid-method bulk-add-topic bulk-add-homework bulk-add-submit bulk-from-date bulk-to-date bulk-student-filter bulk-refresh-list bulk-select-all bulk-clear-selection bulk-selected-count bulk-lessons-list bulk-edit-fields bulk-edit-student bulk-edit-date-mode bulk-edit-set-date-group bulk-edit-set-date bulk-edit-shift-group bulk-edit-shift-days bulk-edit-hour bulk-edit-minute bulk-edit-status bulk-edit-paid bulk-edit-paid-amount bulk-edit-paid-date bulk-edit-paid-method bulk-edit-repeat bulk-edit-topic bulk-edit-homework bulk-apply-edit bulk-delete-selected student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
@@ -373,7 +373,32 @@ async function addStudent(){
   const name=el.newStudentName.value.trim();if(!name){toast("Введіть ім'я учня.",'error');return;}try{syncStatus('saving');const r=await db.from('v2_students').insert({schedule_id:state.scheduleId,name:name,grade:el.newStudentGrade.value.trim()||null,phone:el.newStudentPhone.value.trim()||null,parent_name:el.newStudentParentName.value.trim()||null,parent_phone:el.newStudentParentPhone.value.trim()||null,color:state.selectedNewStudentColor,cooperation_platform:el.newStudentCooperationPlatform.value||null});if(r.error)throw r.error;await loadV2();clearStudentForm();el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');renderStudents();render();toast('Учня додано.','success');}catch(e){dbFail(e);}
 }
 async function updateStudent(id,patch){try{const r=await db.from('v2_students').update(patch).eq('id',String(id)).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();renderStudents();render();}catch(e){dbFail(e);}}
-async function archiveStudent(s){if(!await confirmBox('Архівувати учня "'+s.name+'"? Його уроки залишаться у розкладі та історії.'))return;try{syncStatus('saving');const r=await db.from('v2_students').update({archived_at:new Date().toISOString()}).eq('id',s.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня архівовано. Його уроки залишилися у розкладі.','success');}catch(e){dbFail(e);}}
+async function archiveStudent(s){
+  const pendingCount=state.bookingRequests.filter(x=>x.status==='pending'&&x.studentId===String(s.id)).length;
+  if(pendingCount){
+    const open=await confirmBox('Не можна архівувати учня "'+s.name+'". Спочатку розгляньте запити учня (підтвердьте або відхиліть), потім архівуйте. Очікує запитів: '+pendingCount+'. Відкрити заявки цього учня?');
+    if(open)openRequestsForStudent(s.id);
+    return;
+  }
+  if(!await confirmBox('Архівувати учня "'+s.name+'"? Його уроки залишаться у розкладі та історії.'))return;
+  try{
+    syncStatus('saving');
+    const r=await db.from('v2_students').update({archived_at:new Date().toISOString()}).eq('id',s.id).eq('schedule_id',state.scheduleId);
+    if(r.error)throw r.error;
+    await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня архівовано. Його уроки залишилися у розкладі.','success');
+  }catch(e){
+    const msg=String(e?.message||e?.details||'');
+    if(msg.includes('STUDENT_HAS_PENDING_REQUESTS')){
+      const m=msg.match(/([0-9]+)\s+запит/);
+      const count=m?Number(m[1]):state.bookingRequests.filter(x=>x.status==='pending'&&x.studentId===String(s.id)).length;
+      syncStatus('saved');
+      const open=await confirmBox('Не можна архівувати учня "'+s.name+'". Спочатку розгляньте запити учня (підтвердьте або відхиліть), потім архівуйте. Очікує запитів: '+(count||'невідому кількість')+'. Відкрити заявки цього учня?');
+      if(open)openRequestsForStudent(s.id);
+      return;
+    }
+    dbFail(e);
+  }
+}
 async function unarchiveStudent(s){if(!await confirmBox('Розархівувати учня "'+s.name+'"? Уся збережена інформація буде повернута до активного списку.'))return;try{syncStatus('saving');const r=await db.from('v2_students').update({archived_at:null}).eq('id',s.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня розархівовано.','success');}catch(e){dbFail(e);}}
 function renderStudents(){
   el.studentsList.innerHTML='';
@@ -405,8 +430,33 @@ function renderStudentPlanned(id){
   const ls=studentStats(id).planned.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));el.studentInfoList.innerHTML='';if(!ls.length){el.studentInfoList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Немає запланованих уроків.</div>';return;}
   ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.innerHTML='<div class="lesson-history-header"><strong>'+esc(prettyDate(l.date))+', '+esc(l.time)+'</strong></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'');el.studentInfoList.appendChild(x);});
 }
+function populateRequestsStudentFilter(){
+  const node=el.requestsStudentFilter;
+  if(!node)return;
+  const current=state.requestsStudentId?String(state.requestsStudentId):'';
+  node.innerHTML='<option value="">Усі учні</option>';
+  state.students.slice().sort((a,b)=>a.name.localeCompare(b.name,'uk')).forEach(s=>{
+    const count=state.bookingRequests.filter(r=>r.status==='pending'&&r.studentId===s.id).length;
+    const o=document.createElement('option');o.value=s.id;o.textContent=s.name+(count?' · '+count:'');node.appendChild(o);
+  });
+  if(current&&state.students.some(s=>s.id===current))node.value=current;
+  else{state.requestsStudentId=null;node.value='';}
+}
+function openRequestsForStudent(studentId){
+  state.requestsStudentId=String(studentId);
+  populateRequestsStudentFilter();
+  if(el.settingsModal)el.settingsModal.classList.add('hidden');
+  if(el.requestsModal)el.requestsModal.classList.remove('hidden');
+  renderRequests();
+}
 function renderRequests(){
-  const p=state.bookingRequests.filter(x=>x.status==='pending');el.requestsList.innerHTML='';if(!p.length){el.requestsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Наразі немає нових заявок.</div>';return;}
+  populateRequestsStudentFilter();
+  const p=state.bookingRequests.filter(x=>x.status==='pending'&&(!state.requestsStudentId||x.studentId===String(state.requestsStudentId)));
+  el.requestsList.innerHTML='';
+  if(!p.length){
+    el.requestsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">'+(state.requestsStudentId?'Для цього учня немає заявок, що очікують розгляду.':'Наразі немає нових заявок.')+'</div>';
+    return;
+  }
   p.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),item=document.createElement('div');item.className='request-item';const row=document.createElement('div');row.className='request-row';
     row.innerHTML=r.type==='reschedule'?'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>Перенесення: '+esc(prettyDate(r.oldDate))+' '+esc(r.oldTime||'')+' → '+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>':'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>'+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>';
     const a=document.createElement('div');a.className='request-actions';const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(ok,no);item.append(row,a);el.requestsList.appendChild(item);
@@ -559,7 +609,8 @@ function setupUI(){
   safeBind('editModeCheckbox','onchange',e=>{state.isEditMode=e.target.checked;render();});
   safeBind('modalAddLessonBtn','onclick',()=>{el.settingsModal.classList.add('hidden');openAddLesson();});
   safeBind('modalManageStudentsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderStudents();el.studentsModal.classList.remove('hidden');});
-  safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderRequests();el.requestsModal.classList.remove('hidden');});
+  safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');state.requestsStudentId=null;renderRequests();el.requestsModal.classList.remove('hidden');});
+  safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
   safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
   safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
   safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
