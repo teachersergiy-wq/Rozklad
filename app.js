@@ -25,6 +25,7 @@ function cache(){
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
   el.nextBtn=el.nextDateBtn;
+  el.slotLegend=$('slot-legend');
 }
 
 function safeBind(key,eventName,handler){
@@ -268,6 +269,7 @@ function pendingRequestsForRange(date,start,end){
 function attachPendingRequestInfo(node,requests){
   if(!requests.length)return;
   node.classList.add('has-pending-request');
+  const marker=document.createElement('span');marker.className='pending-request-marker';marker.setAttribute('aria-hidden','true');marker.textContent=requests.length>1?'📝 Заявки: '+requests.length:'📝 Є заявка';node.appendChild(marker);
   node.dataset.pendingRequestCount=String(requests.length);
   node.dataset.pendingRequestIds=JSON.stringify(requests.map(r=>r.id));
   const details=requests.map(r=>r.type==='reschedule'
@@ -347,6 +349,7 @@ function renderYear(){
 }
 function render(){
   dateDisplay();viewButtons();selects();badges();
+  if(el.slotLegend)el.slotLegend.classList.toggle('hidden',state.view==='month'||state.view==='year');
   if(state.view==='year')renderYear();
   else if(state.view==='month')renderMonth();
   else if(state.view==='week'){const s=monday(state.currentDate),ds=[];for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);ds.push(d);}renderColumns(ds);}
