@@ -17,6 +17,7 @@ const state = {
   pendingRequests: [],
   currentDate: new Date(),
   rescheduleFrom: null,
+  hourPicker: null,
   archived: false
 };
 
@@ -99,9 +100,15 @@ function ownLesson(date,h){return state.ownLessons.find(x=>x.date===date&&parseI
 function pendingBooking(date,h){return state.pendingRequests.find(x=>x.type==='booking'&&x.date===date&&x.time===time(h))||null;}
 function pendingReschedule(lessonId){return state.pendingRequests.find(x=>x.type==='reschedule'&&String(x.lessonId)===String(lessonId))||null;}
 
+function pendingTarget(date,h){
+  const t=time(h);
+  return state.pendingRequests.some(x=>x.date===date&&x.time===t);
+}
+
 function isOpen(date,h){
   if(pastSlot(date,h))return false;
   if(busy(date,h))return false;
+  if(pendingTarget(date,h))return false;
   const t=time(h);
   if(h < Number(state.settings.defaultOpenHour||18))return state.openOverrides.some(x=>x.date===date&&x.time===t);
   return !state.closedOverrides.some(x=>x.date===date&&x.time===t);
@@ -117,10 +124,8 @@ function dayEntries(date){
     if(state.archived){flush();continue;}
     const pr=pendingBooking(date,h);
     if(pr){flush();out.push({type:'pending',hour:h});continue;}
-    if(isOpen(date,h)){
-      if(h < Number(state.settings.defaultOpenHour||18)){if(run.length&&run[run.length-1]!==h-1)flush();run.push(h);}
-      else{flush();out.push({type:'free',start:h,end:h+1});}
-    }else flush();
+    if(isOpen(date,h)){run.push(h);continue;}
+    flush();
   }
   flush();return out;
 }
@@ -131,6 +136,49 @@ function dayHeader(date){
   const d=document.createElement('span');d.className='day-header-date';d.textContent=date.getDate()+' '+MONTH_NAMES[date.getMonth()];h.append(n,d);return h;
 }
 
+function pickerMode(){return state.rescheduleFrom&&!state.archived?'reschedule':'booking';}
+function pickerMatches(date,x){
+  const p=state.hourPicker;
+  return !!p&&p.date===date&&p.start===x.start&&p.end===x.end&&p.mode===pickerMode();
+}
+function rangeLabel(x){
+  const first=time(x.start),last=time(Math.max(x.start,x.end-1));
+  return first===last?first:first+'–'+last;
+}
+function openHourPicker(date,x){
+  if(state.archived)return;
+  const mode=pickerMode();
+  if(pickerMatches(date,x)){state.hourPicker=null;renderWeek();return;}
+  state.hourPicker={date,start:x.start,end:x.end,mode,selected:null};
+  renderWeek();
+}
+function renderHourPicker(host,date,x){
+  const p=document.createElement('div');p.className='hour-picker';p.setAttribute('role','group');
+  p.onclick=e=>e.stopPropagation();
+  const title=document.createElement('div');title.className='hour-picker-title';title.textContent='Оберіть годину:';p.appendChild(title);
+  const list=document.createElement('div');list.className='hour-choice-list';
+  const picker=state.hourPicker;
+  let availableCount=0;
+  for(let h=x.start;h<x.end;h++){
+    if(!isOpen(date,h))continue;
+    availableCount++;
+    const b=document.createElement('button');b.type='button';b.className='hour-choice'+(picker&&picker.selected===h?' selected':'');b.textContent=time(h);
+    b.setAttribute('aria-pressed',picker&&picker.selected===h?'true':'false');
+    b.onclick=e=>{e.stopPropagation();if(state.hourPicker){state.hourPicker.selected=h;renderWeek();}};
+    list.appendChild(b);
+  }
+  if(!availableCount){
+    const none=document.createElement('div');none.className='hour-picker-empty';none.textContent='На цей момент вільних годин немає.';p.appendChild(none);host.appendChild(p);return;
+  }
+  p.appendChild(list);
+  const chosen=document.createElement('div');chosen.className='hour-picker-selected';chosen.textContent=picker&&picker.selected!=null?'Обрано: '+time(picker.selected):'Годину ще не обрано.';p.appendChild(chosen);
+  const send=document.createElement('button');send.type='button';send.className='primary hour-picker-submit';send.disabled=!(picker&&picker.selected!=null);
+  send.textContent=picker&&picker.mode==='reschedule'?'Запросити перенесення':'Надіслати заявку';
+  send.onclick=e=>{e.stopPropagation();if(!state.hourPicker||state.hourPicker.selected==null)return;const h=state.hourPicker.selected;state.hourPicker=null;picker.mode==='reschedule'?requestReschedule(date,h):requestBooking(date,h);};
+  p.appendChild(send);
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='hour-picker-cancel';cancel.textContent='Скасувати вибір';cancel.onclick=e=>{e.stopPropagation();state.hourPicker=null;renderWeek();};p.appendChild(cancel);
+  host.appendChild(p);
+}
 function renderWeek(){
   const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
   els.currentWeekDisplay.textContent=start.getDate()+' '+MONTH_NAMES[start.getMonth()]+' - '+end.getDate()+' '+MONTH_NAMES[end.getMonth()];
@@ -141,6 +189,7 @@ function renderWeek(){
   }
   if(els.rescheduleBanner && state.archived){
     state.rescheduleFrom=null;
+    state.hourPicker=null;
     els.rescheduleBanner.classList.add('hidden');
   }
   const wrap=document.createElement('div');wrap.className='week-columns week-pairs';
@@ -154,10 +203,13 @@ function renderWeek(){
     entries.forEach(x=>{
       if(x.type==='lesson'){renderOwnLesson(col,x.lesson);return;}
       if(x.type==='pending'){const p=document.createElement('div');p.className='slot-pending';p.textContent=time(x.hour)+' Очікує підтвердження';col.appendChild(p);return;}
-      const f=document.createElement('div');f.className='slot-free';f.textContent=time(x.start)+(x.end>x.start+1?'–'+time(x.end):'')+' Вільно';
-      if(state.student&&!state.archived){f.classList.add('bookable');}
-      if(state.rescheduleFrom&&!state.archived){f.classList.add('reschedule-target');f.title='Запропонувати цей час для перенесення';f.onclick=()=>requestReschedule(date,x.start);}
-      else if(!state.archived){f.title='Надіслати заявку на запис';f.onclick=()=>requestBooking(date,x.start);}
+      const f=document.createElement('div');f.className='slot-free'+(state.student&&!state.archived?' bookable':'');
+      const label=document.createElement('div');label.className='slot-free-label';label.textContent=rangeLabel(x)+' Вільно';f.appendChild(label);
+      if(!state.archived){
+        f.title='Показати вільні години для вибору';
+        f.onclick=()=>openHourPicker(date,x);
+        if(pickerMatches(date,x))renderHourPicker(f,date,x);
+      }
       col.appendChild(f);
     });
     wrap.appendChild(col);
@@ -244,9 +296,9 @@ function setupModals(){
 
 function setupUI(){
   els.themeToggleBtn.onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
-  els.prevWeekBtn.onclick=async()=>{state.currentDate.setDate(state.currentDate.getDate()-7);await loadStudentSchedule();renderWeek();};
-  els.nextWeekBtn.onclick=async()=>{state.currentDate.setDate(state.currentDate.getDate()+7);await loadStudentSchedule();renderWeek();};
-  els.todayBtn.onclick=async()=>{state.currentDate=new Date();await loadStudentSchedule();renderWeek();};
+  els.prevWeekBtn.onclick=async()=>{state.hourPicker=null;state.currentDate.setDate(state.currentDate.getDate()-7);await loadStudentSchedule();renderWeek();};
+  els.nextWeekBtn.onclick=async()=>{state.hourPicker=null;state.currentDate.setDate(state.currentDate.getDate()+7);await loadStudentSchedule();renderWeek();};
+  els.todayBtn.onclick=async()=>{state.hourPicker=null;state.currentDate=new Date();await loadStudentSchedule();renderWeek();};
   els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
   els.rescheduleBannerCancelBtn.onclick=()=>{state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');renderWeek();};
   window.addEventListener('resize',renderWeek);
