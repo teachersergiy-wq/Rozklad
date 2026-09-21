@@ -264,7 +264,7 @@ function lessonCard(l){
   if(c.draggable)c.ondragstart=e=>e.dataTransfer.setData('text/plain',l.id);return c;
 }
 function renderColumns(days){
-  el.calendarGrid.className='';const wrap=document.createElement('div');wrap.className='week-columns '+(days.length>1?'week-pairs':'');
+  el.calendarGrid.className='';el.calendarGrid.innerHTML='';const wrap=document.createElement('div');wrap.className='week-columns '+(days.length>1?'week-pairs':'');
   days.forEach(d=>{const date=iso(d),col=document.createElement('div');col.className='day-column';col.appendChild(dayHeader(d));let run=[];
     const out=[],merge=days.length>1&&!state.isEditMode,flush=()=>{if(!run.length)return;out.push(run.length===1?{type:'hour',hour:run[0]}:{type:'range',start:run[0],end:run[run.length-1]+1});run=[];};
     hoursFor(date).forEach(h=>{const z=slot(date,h);if(z.status==='lesson'){flush();const f=z.lessons.filter(match);if(f.length)out.push({type:'lesson',lessons:f});return;}
@@ -279,7 +279,7 @@ function renderColumns(days){
     });wrap.appendChild(col);});el.calendarGrid.appendChild(wrap);
 }
 function renderMonth(){
-  el.calendarGrid.className='calendar-grid grid-month';const h=document.querySelector('.header');if(h)document.documentElement.style.setProperty('--month-sticky-top',Math.round(h.getBoundingClientRect().height)+'px');
+  el.calendarGrid.className='calendar-grid grid-month';el.calendarGrid.innerHTML='';const h=document.querySelector('.header');if(h)document.documentElement.style.setProperty('--month-sticky-top',Math.round(h.getBoundingClientRect().height)+'px');
   const y=state.currentDate.getFullYear(),m=state.currentDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate();
   DAYS.forEach(n=>{const x=document.createElement('div');x.className='day-header';x.style.cssText='font-weight:700;font-size:.85rem;';x.textContent=n;el.calendarGrid.appendChild(x);});
   for(let i=start-1;i>=0;i--){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(prev-i)+'</div>';el.calendarGrid.appendChild(x);}
