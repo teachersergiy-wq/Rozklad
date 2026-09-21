@@ -184,6 +184,23 @@ function dateDisplay(){
   el.currentDateDisplay.appendChild(s);
 }
 function viewButtons(){[el.viewDayBtn,el.viewWeekBtn,el.viewMonthBtn].forEach(x=>x.classList.remove('active'));el['view'+state.view.charAt(0).toUpperCase()+state.view.slice(1)+'Btn'].classList.add('active');}
+function populateLessonTimeSelects(){
+  if(!el.lessonHourSelect||!el.lessonMinuteSelect)return;
+  el.lessonHourSelect.innerHTML='';
+  for(let h=MIN_HOUR;h<=MAX_HOUR;h++){
+    const o=document.createElement('option');
+    o.value=String(h).padStart(2,'0');
+    o.textContent=String(h).padStart(2,'0')+':00';
+    el.lessonHourSelect.appendChild(o);
+  }
+  el.lessonMinuteSelect.innerHTML='';
+  for(let m=0;m<60;m+=5){
+    const o=document.createElement('option');
+    o.value=String(m).padStart(2,'0');
+    o.textContent=String(m).padStart(2,'0');
+    el.lessonMinuteSelect.appendChild(o);
+  }
+}
 function selects(){
   el.lessonStudentSelect.innerHTML='';state.students.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;el.lessonStudentSelect.appendChild(o);});
   el.filterStudentSelect.innerHTML='';state.students.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;el.filterStudentSelect.appendChild(o);});
@@ -231,7 +248,11 @@ function attachFree(n,date,h,past){
 function dayHeader(d){
   const h=document.createElement('div');h.className='day-header '+(today(d)?'today':'');
   const n=document.createElement('span');n.className='day-header-name';n.textContent=DAYS[(d.getDay()+6)%7];
-  const x=document.createElement('span');x.className='day-header-date';x.textContent=d.getDate()+' '+MONTHS[d.getMonth()];h.append(n,x);return h;
+  h.appendChild(n);
+  if(state.view!=='day'){
+    const x=document.createElement('span');x.className='day-header-date';x.textContent=d.getDate()+' '+MONTHS[d.getMonth()];h.appendChild(x);
+  }
+  return h;
 }
 function lessonCard(l){
   const s=state.students.find(x=>x.id===l.studentId),c=document.createElement('div');c.className='lesson-card';c.style.backgroundColor=s?s.color:COLORS[0];c.draggable=!pastDate(l.date)||state.isEditMode;
