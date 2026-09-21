@@ -42,6 +42,8 @@ function cache(){
   els.confirmModalOkBtn=$('confirm-modal-ok-btn');
   els.rescheduleBanner=$('reschedule-banner');
   els.rescheduleBannerText=$('reschedule-banner-text');
+  els.pendingRequestsPanel=$('pending-requests-panel');
+  els.pendingRequestsList=$('pending-requests-list');
   els.pendingRequestCounter=$('pending-request-counter');
   els.rescheduleBannerCancelBtn=$('reschedule-banner-cancel-btn');
   els.lessonDetailModal=$('lesson-detail-modal');
@@ -55,10 +57,13 @@ function toast(message,type,duration){
   const t=document.createElement('div');t.className='toast '+(type||'info');t.textContent=message;els.toastContainer.appendChild(t);
   requestAnimationFrame(()=>t.classList.add('show'));setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),250);},duration||3200);
 }
-function confirmBox(message){
+function confirmBox(message,confirmText='Надіслати заявку'){
   return new Promise(resolve=>{
-    els.confirmModalMessage.textContent=message;els.confirmModal.classList.remove('hidden');
-    const done=v=>{els.confirmModal.classList.add('hidden');els.confirmModalOkBtn.onclick=null;els.confirmModalCancelBtn.onclick=null;resolve(v);};
+    const oldText=els.confirmModalOkBtn.textContent;
+    els.confirmModalMessage.textContent=message;
+    els.confirmModalOkBtn.textContent=confirmText;
+    els.confirmModal.classList.remove('hidden');
+    const done=v=>{els.confirmModal.classList.add('hidden');els.confirmModalOkBtn.onclick=null;els.confirmModalCancelBtn.onclick=null;els.confirmModalOkBtn.textContent=oldText;resolve(v);};
     els.confirmModalOkBtn.onclick=()=>done(true);els.confirmModalCancelBtn.onclick=()=>done(false);
   });
 }
@@ -185,6 +190,55 @@ function renderHourPicker(host,date,x){
   const cancel=document.createElement('button');cancel.type='button';cancel.className='hour-picker-cancel';cancel.textContent='Скасувати вибір';cancel.onclick=e=>{e.stopPropagation();state.hourPicker=null;renderWeek();};p.appendChild(cancel);
   host.appendChild(p);
 }
+function renderPendingRequests(){
+  if(!els.pendingRequestsPanel||!els.pendingRequestsList)return;
+  const visible=!state.archived&&state.pendingRequests.length>0;
+  els.pendingRequestsPanel.classList.toggle('hidden',!visible);
+  if(!visible){els.pendingRequestsList.innerHTML='';return;}
+  els.pendingRequestsList.innerHTML='';
+  state.pendingRequests.forEach(r=>{
+    const item=document.createElement('div');item.className='pending-request-item';
+    const info=document.createElement('div');info.className='pending-request-info';
+    const title=document.createElement('div');title.className='pending-request-title';
+    title.textContent=r.type==='reschedule'
+      ? 'Перенесення: '+prettyDate(r.oldDate||'')+', '+(r.oldTime||'')+' → '+prettyDate(r.date)+', '+r.time
+      : 'Запис: '+prettyDate(r.date)+', '+r.time;
+    const meta=document.createElement('div');meta.className='pending-request-meta';meta.textContent='Очікує рішення викладача';
+    info.append(title,meta);
+    const cancel=document.createElement('button');cancel.type='button';cancel.className='pending-request-cancel';cancel.textContent='Відкликати';cancel.title='Відкликати цей запит';cancel.onclick=()=>cancelStudentRequest(r);
+    item.append(info,cancel);
+    els.pendingRequestsList.appendChild(item);
+  });
+}
+
+async function cancelStudentRequest(req){
+  if(state.archived)return;
+  const label=req.type==='reschedule'
+    ? 'перенесення з '+prettyDate(req.oldDate||'')+', '+(req.oldTime||'')+' на '+prettyDate(req.date)+', '+req.time
+    : 'запис на '+prettyDate(req.date)+', '+req.time;
+  if(!await confirmBox('Відкликати запит: '+label+'?','Відкликати'))return;
+  try{
+    const r=await db.rpc('v2_cancel_booking_request',{p_token:state.token,p_request_id:req.id});
+    if(r.error)throw r.error;
+    await loadStudentSchedule();renderWeek();
+    toast('Запит відкликано.','success');
+  }catch(e){
+    console.error(e);
+    const msg=String(e?.message||'');
+    if(msg.includes('REQUEST_NOT_PENDING')){
+      try{await loadStudentSchedule();renderWeek();}catch(_){}
+      toast('Цей запит уже не очікує рішення.','error',5000);
+      return;
+    }
+    if(msg.includes('REQUEST_NOT_FOUND_OR_NOT_OWNED')){
+      try{await loadStudentSchedule();renderWeek();}catch(_){}
+      toast('Запит не знайдено або він уже недоступний.','error',5000);
+      return;
+    }
+    toast(msg||'Не вдалося відкликати запит.','error',5000);
+  }
+}
+
 function renderPendingCounter(){
   if(!els.pendingRequestCounter)return;
   const n=state.pendingRequests.length;
@@ -197,6 +251,7 @@ function renderPendingCounter(){
 function renderWeek(){
   const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
   els.currentWeekDisplay.textContent=start.getDate()+' '+MONTH_NAMES[start.getMonth()]+' - '+end.getDate()+' '+MONTH_NAMES[end.getMonth()];
+  renderPendingRequests();
   renderPendingCounter();
   els.scheduleContainer.innerHTML='';
   if(els.archiveNotice){
