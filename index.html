@@ -566,6 +566,12 @@
   <div id="requests-modal" class="modal hidden" data-confirm-btn="close-requests-modal-btn" data-cancel-btn="close-requests-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;">Заявки на запис від учнів</h2>
+      <div class="requests-filter-row" style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+        <label for="requests-student-filter" style="font-size:.82rem;font-weight:700;white-space:nowrap;">Учень:</label>
+        <select id="requests-student-filter" style="flex:1;min-width:0;">
+          <option value="">Усі учні</option>
+        </select>
+      </div>
       <div id="requests-list" style="max-height: 420px; overflow-y: auto; margin-top: 10px;"></div>
       <div style="text-align: right; margin-top: 16px;">
         <button id="close-requests-modal-btn" style="width: 100%;">Закрити</button>
@@ -800,6 +806,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260921-5"></script>
+  <script src="app.js?v=20260921-6"></script>
 </body>
 </html>
