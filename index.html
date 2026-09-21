@@ -235,6 +235,22 @@
     .audit-item .audit-meta { color: var(--text-muted); font-size: 0.74rem; }
 
     .backup-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--surface-alt); flex-wrap: wrap; }
+    .bulk-tabs { display:flex; gap:6px; margin-bottom:12px; }
+    .bulk-tabs button { flex:1; }
+    .bulk-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .bulk-form-grid .form-group { margin-bottom:8px; }
+    .bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .bulk-actions button { flex:1; min-width:150px; }
+    .bulk-selection-bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    .bulk-lessons-list { max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px; background:var(--surface-alt); }
+    .bulk-lesson-row { display:flex; gap:8px; align-items:center; padding:7px 8px; border-bottom:1px dashed var(--border); font-size:.78rem; }
+    .bulk-lesson-row:last-child { border-bottom:0; }
+    .bulk-lesson-row input { width:18px; height:18px; flex:0 0 auto; }
+    .bulk-lesson-main { min-width:0; flex:1; }
+    .bulk-lesson-main strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bulk-lesson-meta { color:var(--text-muted); font-size:.72rem; }
+    .bulk-help { color:var(--text-muted); font-size:.76rem; margin:0 0 8px; line-height:1.3; }
+    .bulk-danger-zone { margin-top:12px; padding:10px; border:1px solid #fecaca; border-radius:8px; background:#fef2f2; }
 
     /* Контекстне меню уроку/слоту */
     .context-menu { position: fixed; z-index: 3000; min-width: 210px; padding: 5px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 12px 30px var(--shadow); }
@@ -351,6 +367,7 @@
         <button id="modal-reports-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📊 Звіти</button>
         <button id="modal-issues-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">⚠️ Перевірка помилок</button>
         <button id="modal-audit-log-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🧾 Журнал змін</button>
+        <button id="modal-bulk-lessons-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📚 Групове керування уроками</button>
         <button id="modal-backups-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🗄 Резервні копії</button>
         <button id="modal-student-link-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🔗 Загальне посилання для учнів</button>
 
@@ -591,6 +608,85 @@
       <div style="text-align: right; margin-top: 16px;">
         <button id="close-student-link-modal-btn" style="width: 100%;">Закрити</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Модальне вікно групового керування уроками -->
+  <div id="bulk-lessons-modal" class="modal hidden" data-confirm-btn="close-bulk-lessons-modal-btn" data-cancel-btn="close-bulk-lessons-modal-btn">
+    <div class="modal-content wide">
+      <h2 style="margin-top:0; font-size:1.25rem;">📚 Групове керування уроками</h2>
+      <p class="bulk-help">Пакетні операції виконуються атомарно: якщо один цільовий слот конфліктує, вся операція не застосовується.</p>
+
+      <div class="bulk-tabs">
+        <button id="bulk-mode-add" class="active" type="button">➕ Додати серію</button>
+        <button id="bulk-mode-manage" type="button">✏️ Керувати вибраними</button>
+      </div>
+
+      <div id="bulk-add-panel">
+        <div class="bulk-form-grid">
+          <div class="form-group"><label>Учень</label><select id="bulk-add-student-select"></select></div>
+          <div class="form-group"><label>Дата початку</label><input type="date" id="bulk-add-date-input"></div>
+          <div class="form-group"><label>Година</label><select id="bulk-add-hour-select"></select></div>
+          <div class="form-group"><label>Хвилини</label><select id="bulk-add-minute-select"></select></div>
+          <div class="form-group"><label>Статус</label><select id="bulk-add-status-select"><option value="planned">Запланований</option><option value="completed">Відбувся</option><option value="cancelled">Скасований</option></select></div>
+          <div class="form-group"><label>Повторення</label><select id="bulk-add-repeat-select"><option value="1">Лише один раз</option><option value="2">2 тижні</option><option value="3">3 тижні</option><option value="4">4 тижні</option><option value="8">8 тижнів</option></select></div>
+        </div>
+        <div class="form-group"><label>Оплата</label><select id="bulk-add-paid-select"><option value="false">Не оплачено</option><option value="true">Оплачено</option></select></div>
+        <div id="bulk-add-payment-group" class="bulk-form-grid" style="display:none;">
+          <div class="form-group"><label>Сума (грн)</label><input type="number" id="bulk-add-paid-amount" min="0" step="5" value="175"></div>
+          <div class="form-group"><label>Дата оплати</label><input type="date" id="bulk-add-paid-date"></div>
+          <div class="form-group"><label>Спосіб оплати</label><select id="bulk-add-paid-method"><option value="МоноБанк">МоноБанк</option><option value="Готівка">Готівка</option><option value="ПриватБанк">ПриватБанк</option><option value="Ощад Банк">Ощад Банк</option><option value="Mathema">Mathema</option></select></div>
+        </div>
+        <div class="form-group"><label>Тема</label><input type="text" id="bulk-add-topic" placeholder="Необов'язково"></div>
+        <div class="form-group"><label>Домашнє завдання</label><input type="text" id="bulk-add-homework" placeholder="Необов'язково"></div>
+        <div class="bulk-actions"><button id="bulk-add-submit" type="button" class="primary">Додати серію</button></div>
+      </div>
+
+      <div id="bulk-manage-panel" style="display:none;">
+        <div class="bulk-form-grid">
+          <div class="form-group"><label>Від</label><input type="date" id="bulk-from-date"></div>
+          <div class="form-group"><label>До</label><input type="date" id="bulk-to-date"></div>
+          <div class="form-group"><label>Учень</label><select id="bulk-student-filter"></select></div>
+          <div class="form-group"><label>&nbsp;</label><button id="bulk-refresh-list" type="button" style="width:100%;">Оновити список</button></div>
+        </div>
+        <div class="bulk-selection-bar">
+          <button id="bulk-select-all" type="button" class="small-btn">Вибрати всі видимі</button>
+          <button id="bulk-clear-selection" type="button" class="small-btn">Зняти вибір</button>
+          <strong id="bulk-selected-count">Вибрано: 0</strong>
+        </div>
+        <div id="bulk-lessons-list" class="bulk-lessons-list"></div>
+
+        <div id="bulk-edit-fields" style="margin-top:12px;">
+          <h3 style="font-size:1rem;margin:0 0 8px;">Масове редагування</h3>
+          <p class="bulk-help">Для полів зі значенням «Не змінювати» поточні дані кожного уроку залишаться без змін.</p>
+          <div class="bulk-form-grid">
+            <div class="form-group"><label>Учень</label><select id="bulk-edit-student"></select></div>
+            <div class="form-group"><label>Дата</label><select id="bulk-edit-date-mode"><option value="none">Не змінювати</option><option value="set">Встановити одну дату</option><option value="shift">Зсунути на днів</option></select></div>
+            <div class="form-group" id="bulk-edit-set-date-group" style="display:none;"><label>Нова дата</label><input type="date" id="bulk-edit-set-date"></div>
+            <div class="form-group" id="bulk-edit-shift-group" style="display:none;"><label>Зсув, днів</label><input type="number" id="bulk-edit-shift-days" step="1" value="7"></div>
+            <div class="form-group"><label>Година</label><select id="bulk-edit-hour"></select></div>
+            <div class="form-group"><label>Хвилини</label><select id="bulk-edit-minute"></select></div>
+            <div class="form-group"><label>Статус</label><select id="bulk-edit-status"><option value="">Не змінювати</option><option value="planned">Запланований</option><option value="completed">Відбувся</option><option value="cancelled">Скасований</option></select></div>
+            <div class="form-group"><label>Оплата</label><select id="bulk-edit-paid"><option value="">Не змінювати</option><option value="true">Оплачено</option><option value="false">Не оплачено</option></select></div>
+          </div>
+          <div class="bulk-form-grid">
+            <div class="form-group"><label>Сума (грн)</label><input type="number" id="bulk-edit-paid-amount" min="0" step="5" placeholder="Не змінювати"></div>
+            <div class="form-group"><label>Дата оплати</label><input type="date" id="bulk-edit-paid-date"></div>
+            <div class="form-group"><label>Спосіб оплати</label><select id="bulk-edit-paid-method"><option value="">Не змінювати</option><option value="МоноБанк">МоноБанк</option><option value="Готівка">Готівка</option><option value="ПриватБанк">ПриватБанк</option><option value="Ощад Банк">Ощад Банк</option><option value="Mathema">Mathema</option></select></div>
+            <div class="form-group"><label>Повторення</label><select id="bulk-edit-repeat"><option value="1">Не створювати повторення</option><option value="2">Створити до 2 тижнів</option><option value="3">Створити до 3 тижнів</option><option value="4">Створити до 4 тижнів</option><option value="8">Створити до 8 тижнів</option></select></div>
+          </div>
+          <div class="form-group"><label>Тема</label><input type="text" id="bulk-edit-topic" placeholder="Не змінювати"></div>
+          <div class="form-group"><label>Домашнє завдання</label><input type="text" id="bulk-edit-homework" placeholder="Не змінювати"></div>
+          <div class="bulk-actions"><button id="bulk-apply-edit" type="button" class="primary">Застосувати до вибраних</button></div>
+        </div>
+
+        <div class="bulk-danger-zone">
+          <strong>Видалення вибраних уроків</strong>
+          <div class="bulk-actions"><button id="bulk-delete-selected" type="button" class="danger">🗑 Видалити вибрані</button></div>
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:16px;"><button id="close-bulk-lessons-modal-btn" type="button" style="width:100%;">Закрити</button></div>
     </div>
   </div>
 
