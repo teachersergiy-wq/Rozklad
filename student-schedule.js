@@ -16,7 +16,8 @@ const state = {
   closedOverrides: [],
   pendingRequests: [],
   currentDate: new Date(),
-  rescheduleFrom: null
+  rescheduleFrom: null,
+  archived: false
 };
 
 const els = {};
@@ -31,6 +32,7 @@ function cache(){
   els.themeToggleBtn=$('theme-toggle-btn');
   els.pageTitle=$('page-title');
   els.pageSubtitle=$('page-subtitle');
+  els.archiveNotice=$('archive-notice');
   els.toastContainer=$('toast-container');
   els.confirmModal=$('confirm-modal');
   els.confirmModalMessage=$('confirm-modal-message');
@@ -77,6 +79,7 @@ async function loadStudentSchedule(){
   if(!r.data||!r.data.student)throw new Error('Невірне або застаріле персональне посилання.');
 
   state.student=r.data.student;
+  state.archived=!!r.data.student.archived;
   state.settings=r.data.scheduleSettings||state.settings;
   state.ownLessons=Array.isArray(r.data.ownLessons)?r.data.ownLessons.map(x=>({
     id:String(x.id),date:String(x.date),time:String(x.time||'00:00').slice(0,5),status:x.status||'planned',
@@ -111,6 +114,7 @@ function dayEntries(date){
   for(let h=min;h<=max;h++){
     const own=ownLesson(date,h);
     if(own){flush();out.push({type:'lesson',hour:h,lesson:own});continue;}
+    if(state.archived){flush();continue;}
     const pr=pendingBooking(date,h);
     if(pr){flush();out.push({type:'pending',hour:h});continue;}
     if(isOpen(date,h)){
@@ -131,19 +135,29 @@ function renderWeek(){
   const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
   els.currentWeekDisplay.textContent=start.getDate()+' '+MONTH_NAMES[start.getMonth()]+' - '+end.getDate()+' '+MONTH_NAMES[end.getMonth()];
   els.scheduleContainer.innerHTML='';
+  if(els.archiveNotice){
+    els.archiveNotice.classList.toggle('hidden',!state.archived);
+    els.archiveNotice.setAttribute('aria-hidden',state.archived?'false':'true');
+  }
+  if(els.rescheduleBanner && state.archived){
+    state.rescheduleFrom=null;
+    els.rescheduleBanner.classList.add('hidden');
+  }
   const wrap=document.createElement('div');wrap.className='week-columns week-pairs';
 
   for(let i=0;i<7;i++){
     const d=new Date(start);d.setDate(start.getDate()+i);const date=iso(d),col=document.createElement('div');col.className='day-column';col.appendChild(dayHeader(d));
     const entries=dayEntries(date);
-    if(!entries.length){const e=document.createElement('div');e.className='no-slots';e.textContent='Немає вільних годин';col.appendChild(e);}
+    if(!entries.length){
+      const e=document.createElement('div');e.className='no-slots';e.textContent=state.archived?'Історія цього дня відсутня або прихована після дати архівації':'Немає вільних годин';col.appendChild(e);
+    }
     entries.forEach(x=>{
       if(x.type==='lesson'){renderOwnLesson(col,x.lesson);return;}
       if(x.type==='pending'){const p=document.createElement('div');p.className='slot-pending';p.textContent=time(x.hour)+' Очікує підтвердження';col.appendChild(p);return;}
       const f=document.createElement('div');f.className='slot-free';f.textContent=time(x.start)+(x.end>x.start+1?'–'+time(x.end):'')+' Вільно';
-      if(state.student){f.classList.add('bookable');}
-      if(state.rescheduleFrom){f.classList.add('reschedule-target');f.title='Запропонувати цей час для перенесення';f.onclick=()=>requestReschedule(date,x.start);}
-      else{f.title='Надіслати заявку на запис';f.onclick=()=>requestBooking(date,x.start);}
+      if(state.student&&!state.archived){f.classList.add('bookable');}
+      if(state.rescheduleFrom&&!state.archived){f.classList.add('reschedule-target');f.title='Запропонувати цей час для перенесення';f.onclick=()=>requestReschedule(date,x.start);}
+      else if(!state.archived){f.title='Надіслати заявку на запис';f.onclick=()=>requestBooking(date,x.start);}
       col.appendChild(f);
     });
     wrap.appendChild(col);
@@ -152,7 +166,7 @@ function renderWeek(){
 }
 
 function renderOwnLesson(col,l){
-  const pending=pendingReschedule(l.id),isCompleted=l.status==='completed',isPaid=l.paid;
+  const pending=state.archived?null:pendingReschedule(l.id),isCompleted=l.status==='completed',isPaid=l.paid;
   const x=document.createElement('div');x.className='slot-lesson '+(pending?'pending-reschedule':(isCompleted?'completed':'planned'));
   const t=document.createElement('div');t.className='slot-lesson-time';t.textContent=l.time;x.appendChild(t);
   const n=document.createElement('div');n.className='slot-lesson-student';n.textContent=state.student.name;x.appendChild(n);
@@ -164,28 +178,35 @@ function renderOwnLesson(col,l){
 }
 
 function showLesson(l){
-  const pending=pendingReschedule(l.id);
+  const pending=state.archived?null:pendingReschedule(l.id);
   els.lessonDetailTitle.textContent=prettyDate(l.date)+', '+l.time;
   els.lessonDetailBody.innerHTML='<div class="lesson-detail-row"><b>Статус:</b> '+(l.status==='completed'?'Проведено':'Заплановано')+'</div><div class="lesson-detail-row"><b>Тема уроку:</b> '+(l.topic?esc(l.topic):'—')+'</div><div class="lesson-detail-row"><b>Домашнє завдання:</b> '+(l.homework?esc(l.homework):'—')+'</div>';
   const p=document.createElement('div');p.className='payment-note '+(l.paid?'paid':'unpaid');p.textContent=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':'')+(l.paidMethod?' · '+l.paidMethod:''):'⚠️ Урок ще не оплачено. Будь ласка, зв\'яжіться з викладачем щодо оплати.';els.lessonDetailBody.appendChild(p);
   if(pending){const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⏳ Запит на перенесення</b> вже надіслано на '+prettyDate(pending.date)+', '+pending.time+' — очікує підтвердження.';els.lessonDetailBody.appendChild(q);}
-  const can=l.status==='planned'&&!pending&&!pastSlot(l.date,parseInt(l.time.split(':')[0],10));
+  const can=!state.archived&&l.status==='planned'&&!pending&&!pastSlot(l.date,parseInt(l.time.split(':')[0],10));
   els.lessonDetailRescheduleBtn.style.display=can?'block':'none';
   els.lessonDetailRescheduleBtn.onclick=()=>{els.lessonDetailModal.classList.add('hidden');state.rescheduleFrom={lessonId:l.id,date:l.date,time:l.time};els.rescheduleBannerText.textContent='Оберіть новий вільний час для перенесення уроку з '+prettyDate(l.date)+', '+l.time;els.rescheduleBanner.classList.remove('hidden');renderWeek();};
   els.lessonDetailModal.classList.remove('hidden');
 }
 
 async function requestBooking(date,h){
+  if(state.archived){showArchivedAccessMessage();return;}
   const label=prettyDate(date)+', '+time(h);
   if(!await confirmBox('Надіслати заявку на запис: '+label+'?'))return;
   try{
     const r=await db.rpc('v2_create_booking_request',{p_token:state.token,p_date:date,p_time:time(h)});
     if(r.error)throw r.error;
     await loadStudentSchedule();renderWeek();toast('Заявку надіслано! Очікуйте підтвердження від викладача.','success');
-  }catch(e){console.error(e);toast(e.message||'Не вдалося надіслати заявку.','error',5000);}
+  }catch(e){
+    console.error(e);
+    const msg=String(e?.message||'');
+    if(msg.includes('STUDENT_ARCHIVED')){showArchivedAccessMessage();return;}
+    toast(msg||'Не вдалося надіслати заявку.','error',5000);
+  }
 }
 
 async function requestReschedule(date,h){
+  if(state.archived){showArchivedAccessMessage();return;}
   if(!state.rescheduleFrom)return;
   const from=state.rescheduleFrom,newTime=time(h);
   if(date===from.date&&newTime===from.time){toast('Оберіть інший час.','error');return;}
@@ -194,7 +215,21 @@ async function requestReschedule(date,h){
     const r=await db.rpc('v2_create_reschedule_request',{p_token:state.token,p_lesson_id:from.lessonId,p_new_date:date,p_new_time:newTime});
     if(r.error)throw r.error;
     state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');await loadStudentSchedule();renderWeek();toast('Запит на перенесення надіслано.','success');
-  }catch(e){console.error(e);toast(e.message||'Не вдалося надіслати запит.','error',5000);}
+  }catch(e){
+    console.error(e);
+    const msg=String(e?.message||'');
+    if(msg.includes('STUDENT_ARCHIVED')){showArchivedAccessMessage();return;}
+    toast(msg||'Не вдалося надіслати запит.','error',5000);
+  }
+}
+
+function showArchivedAccessMessage(){
+  const msg='Ваш доступ до запису й перенесення уроків призупинено. Зверніться до вчителя для відновлення можливості надсилати запити.';
+  if(els.archiveNotice){
+    els.archiveNotice.classList.remove('hidden');
+    els.archiveNotice.textContent=msg;
+  }
+  toast(msg,'error',6000);
 }
 
 function setupModals(){
@@ -226,6 +261,17 @@ document.addEventListener('DOMContentLoaded',async()=>{
     els.pageSubtitle.textContent='Відкрийте посилання, яке надав викладач для цього учня.';
     els.scheduleContainer.innerHTML='<div class="loading">Не знайдено параметр token.</div>';return;
   }
-  try{els.scheduleContainer.innerHTML='<div class="loading">Завантаження розкладу...</div>';await loadStudentSchedule();els.pageTitle.textContent='📅 Вітаємо, '+state.student.name+'!';els.pageSubtitle.textContent='Тут показано ваші уроки та доступні години для запису.';renderWeek();}
-  catch(e){console.error(e);els.pageTitle.textContent='❗ Посилання недійсне';els.pageSubtitle.textContent=e.message||'Зверніться до викладача за новим персональним посиланням.';els.scheduleContainer.innerHTML='<div class="loading">Не вдалося завантажити персональний розклад.</div>';toast(e.message||'Не вдалося завантажити розклад.','error',6000);}
+  try{
+    els.scheduleContainer.innerHTML='<div class="loading">Завантаження розкладу...</div>';
+    await loadStudentSchedule();
+    els.pageTitle.textContent='📅 '+(state.archived?'Історія розкладу · ':'Вітаємо, ')+state.student.name+'!';
+    els.pageSubtitle.textContent=state.archived?'Перегляд історії уроків доступний до дати архівації. Запис і перенесення призупинені.':'Тут показано ваші уроки та доступні години для запису.';
+    renderWeek();
+  }catch(e){
+    console.error(e);
+    els.pageTitle.textContent='❗ Посилання недійсне';
+    els.pageSubtitle.textContent=e.message||'Зверніться до викладача за новим персональним посиланням.';
+    els.scheduleContainer.innerHTML='<div class="loading">Не вдалося завантажити персональний розклад.</div>';
+    toast(e.message||'Не вдалося завантажити розклад.','error',6000);
+  }
 });
