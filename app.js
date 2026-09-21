@@ -665,6 +665,13 @@ function renderBulkLessonList(){
   });
   updateBulkSelectedCount();
 }
+function bulkFriendlyError(e){
+  const msg=String(e?.message||e?.details||'').toLowerCase();
+  if(msg.includes('пакетне додавання зупинено')||msg.includes('пакетна зміна зупинена')||msg.includes('створення повторення зупинено')||msg.includes('already occupied')||msg.includes('duplicate key')||msg.includes('unique constraint')||msg.includes('цільовий слот')||msg.includes('слот')&&msg.includes('вже зайнятий')){
+    return 'Колізія слота: один із цільових часів уже зайнятий. Пакетну операцію не виконано.';
+  }
+  return String(e?.message||e?.details||'Не вдалося виконати пакетну операцію.');
+}
 function updateBulkSelectedCount(){if(el.bulkSelectedCount)el.bulkSelectedCount.textContent='Вибрано: '+state.bulkSelectedLessonIds.size;}
 async function bulkAddLessons(){
   const student=el.bulkAddStudentSelect?.value||'',date=el.bulkAddDateInput?.value||'',hour=el.bulkAddHourSelect?.value||'',minute=el.bulkAddMinuteSelect?.value||'',status=el.bulkAddStatusSelect?.value||'planned',repeat=parseInt(el.bulkAddRepeatSelect?.value||'1',10)||1,paid=el.bulkAddPaidSelect?.value==='true';
@@ -676,7 +683,7 @@ async function bulkAddLessons(){
     const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'add',p_lesson_ids:[],p_changes:{},p_additions:{student_id:student,start_date:date,lesson_time:hour+':'+minute,status,repeat_weeks:repeat,paid,paid_amount:paid?(parseFloat(el.bulkAddPaidAmount?.value)||DEFAULT_PAID_AMOUNT):null,paid_date:paid?(el.bulkAddPaidDate?.value||date):null,paid_method:paid?(el.bulkAddPaidMethod?.value||DEFAULT_PAID_METHOD):null,topic:el.bulkAddTopic?.value.trim()||null,homework:el.bulkAddHomework?.value.trim()||null}});
     if(r.error)throw r.error;
     await loadV2();render();toast('Додано уроків: '+Number(r.data||0),'success');renderBulkLessonList();
-  }catch(e){dbFail(e);}
+  }catch(e){syncStatus('offline');toast(bulkFriendlyError(e),'error',6000);}
 }
 function bulkEditChanges(){
   const changes={},student=el.bulkEditStudent?.value||'',dateMode=el.bulkEditDateMode?.value||'none',hour=el.bulkEditHour?.value||'',minute=el.bulkEditMinute?.value||'',status=el.bulkEditStatus?.value||'',paid=el.bulkEditPaid?.value||'';
@@ -700,7 +707,7 @@ async function bulkApplyEdit(){
     const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'update',p_lesson_ids:Array.from(state.bulkSelectedLessonIds),p_changes:changes,p_additions:{}});
     if(r.error)throw r.error;
     await loadV2();state.bulkSelectedLessonIds.clear();render();renderBulkLessonList();toast('Пакетно змінено записів: '+Number(r.data||0),'success');
-  }catch(e){dbFail(e);}
+  }catch(e){syncStatus('offline');toast(bulkFriendlyError(e),'error',6000);}
 }
 async function bulkDeleteSelected(){
   if(!state.bulkSelectedLessonIds.size){toast('Спочатку виберіть хоча б один урок.','error');return;}
@@ -712,7 +719,7 @@ async function bulkDeleteSelected(){
     const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'delete',p_lesson_ids:Array.from(state.bulkSelectedLessonIds),p_changes:{},p_additions:{}});
     if(r.error)throw r.error;
     await loadV2();state.bulkSelectedLessonIds.clear();render();renderBulkLessonList();toast('Видалено уроків: '+Number(r.data||0),'success');
-  }catch(e){dbFail(e);}
+  }catch(e){syncStatus('offline');toast(bulkFriendlyError(e),'error',6000);}
 }
 function setupUI(){
   safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
