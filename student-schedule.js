@@ -5,6 +5,7 @@ const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE
 const DAY_NAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
 const MONTH_NAMES = ['січ.','лют.','берез.','квіт.','трав.','черв.','лип.','серп.','верес.','жовт.','лист.','груд.'];
 const THEME_KEY = 'schedule_theme_pref';
+const MAX_PENDING_REQUESTS = 2;
 
 const state = {
   token: null,
@@ -41,6 +42,7 @@ function cache(){
   els.confirmModalOkBtn=$('confirm-modal-ok-btn');
   els.rescheduleBanner=$('reschedule-banner');
   els.rescheduleBannerText=$('reschedule-banner-text');
+  els.pendingRequestCounter=$('pending-request-counter');
   els.rescheduleBannerCancelBtn=$('reschedule-banner-cancel-btn');
   els.lessonDetailModal=$('lesson-detail-modal');
   els.lessonDetailTitle=$('lesson-detail-title');
@@ -172,16 +174,30 @@ function renderHourPicker(host,date,x){
   }
   p.appendChild(list);
   const chosen=document.createElement('div');chosen.className='hour-picker-selected';chosen.textContent=picker&&picker.selected!=null?'Обрано: '+time(picker.selected):'Годину ще не обрано.';p.appendChild(chosen);
-  const send=document.createElement('button');send.type='button';send.className='primary hour-picker-submit';send.disabled=!(picker&&picker.selected!=null);
+  const maxed=state.pendingRequests.length>=MAX_PENDING_REQUESTS;
+  if(maxed){
+    const limit=document.createElement('div');limit.className='hour-picker-limit';limit.textContent='Досягнуто ліміту: дочекайтеся рішення вчителя щодо поданих запитів.';p.appendChild(limit);
+  }
+  const send=document.createElement('button');send.type='button';send.className='primary hour-picker-submit';send.disabled=maxed||!(picker&&picker.selected!=null);
   send.textContent=picker&&picker.mode==='reschedule'?'Запросити перенесення':'Надіслати заявку';
   send.onclick=e=>{e.stopPropagation();if(!state.hourPicker||state.hourPicker.selected==null)return;const h=state.hourPicker.selected;state.hourPicker=null;picker.mode==='reschedule'?requestReschedule(date,h):requestBooking(date,h);};
   p.appendChild(send);
   const cancel=document.createElement('button');cancel.type='button';cancel.className='hour-picker-cancel';cancel.textContent='Скасувати вибір';cancel.onclick=e=>{e.stopPropagation();state.hourPicker=null;renderWeek();};p.appendChild(cancel);
   host.appendChild(p);
 }
+function renderPendingCounter(){
+  if(!els.pendingRequestCounter)return;
+  const n=state.pendingRequests.length;
+  const hidden=!!state.archived;
+  els.pendingRequestCounter.classList.toggle('hidden',hidden);
+  els.pendingRequestCounter.classList.toggle('limit',!hidden&&n>=MAX_PENDING_REQUESTS);
+  els.pendingRequestCounter.textContent=hidden?'':'Запитів на розгляді: '+n+' із '+MAX_PENDING_REQUESTS;
+  els.pendingRequestCounter.setAttribute('aria-hidden',hidden?'true':'false');
+}
 function renderWeek(){
   const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
   els.currentWeekDisplay.textContent=start.getDate()+' '+MONTH_NAMES[start.getMonth()]+' - '+end.getDate()+' '+MONTH_NAMES[end.getMonth()];
+  renderPendingCounter();
   els.scheduleContainer.innerHTML='';
   if(els.archiveNotice){
     els.archiveNotice.classList.toggle('hidden',!state.archived);
@@ -253,6 +269,11 @@ async function requestBooking(date,h){
     console.error(e);
     const msg=String(e?.message||'');
     if(msg.includes('STUDENT_ARCHIVED')){showArchivedAccessMessage();return;}
+    if(msg.includes('MAX_PENDING_REQUESTS')){
+      try{await loadStudentSchedule();renderWeek();}catch(_){}
+      toast('Запитів на розгляді: '+MAX_PENDING_REQUESTS+' із '+MAX_PENDING_REQUESTS+'. Дочекайтеся рішення вчителя щодо поданих запитів.','error',6000);
+      return;
+    }
     toast(msg||'Не вдалося надіслати заявку.','error',5000);
   }
 }
@@ -271,6 +292,11 @@ async function requestReschedule(date,h){
     console.error(e);
     const msg=String(e?.message||'');
     if(msg.includes('STUDENT_ARCHIVED')){showArchivedAccessMessage();return;}
+    if(msg.includes('MAX_PENDING_REQUESTS')){
+      try{await loadStudentSchedule();renderWeek();}catch(_){}
+      toast('Запитів на розгляді: '+MAX_PENDING_REQUESTS+' із '+MAX_PENDING_REQUESTS+'. Дочекайтеся рішення вчителя щодо поданих запитів.','error',6000);
+      return;
+    }
     toast(msg||'Не вдалося надіслати запит.','error',5000);
   }
 }
