@@ -14,7 +14,7 @@ const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],currentDate:new Date(),view:'day',filterType:'all',
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
-  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,bulkSelectedLessonIds:new Set()
+  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,bulkSelectedLessonIds:new Set(),highlightedRequestSlot:null
 };
 let el={};
 
@@ -286,6 +286,8 @@ function attachPendingRequestInfo(node,requests){
     : r.studentName+' — запис');
   const label='Є заявка(и), що очікують: '+details.join('; ');
   node.dataset.pendingRequestDetails=JSON.stringify(requests);
+  const hi=state.highlightedRequestSlot;
+  if(hi&&requests.some(r=>String(r.id)===String(hi.requestId))){node.classList.add('request-slot-highlight');node.dataset.highlightedRequestId=String(hi.requestId);}
   node.setAttribute('aria-label',label);
   node.title=label;
 }
@@ -544,6 +546,19 @@ function openSlotRequestModal(date,requests){
   });
   el.slotRequestModal.classList.remove('hidden');
 }
+function focusRequestSlot(r){
+  state.requestsStudentId=null;
+  state.highlightedRequestSlot={date:r.date,time:r.time,requestId:r.id};
+  state.currentDate=new Date(String(r.date)+'T12:00:00');
+  state.view='day';
+  if(el.requestsModal)el.requestsModal.classList.add('hidden');
+  render();
+  setTimeout(()=>{
+    const node=document.querySelector('.request-slot-highlight');
+    if(node)node.scrollIntoView({behavior:'smooth',block:'center'});
+    state.highlightedRequestSlot=null;
+  },80);
+}
 function renderRequests(){
   populateRequestsStudentFilter();
   const p=state.bookingRequests.filter(x=>x.status==='pending'&&(!state.requestsStudentId||x.studentId===String(state.requestsStudentId)));
@@ -554,7 +569,9 @@ function renderRequests(){
   }
   p.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),item=document.createElement('div');item.className='request-item';const row=document.createElement('div');row.className='request-row';
     row.innerHTML=r.type==='reschedule'?'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>Перенесення: '+esc(prettyDate(r.oldDate))+' '+esc(r.oldTime||'')+' → '+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>':'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>'+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>';
-    const a=document.createElement('div');a.className='request-actions';const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(ok,no);item.append(row,a);el.requestsList.appendChild(item);
+    const a=document.createElement('div');a.className='request-actions';
+    const go=document.createElement('button');go.type='button';go.className='small-btn';go.textContent='Перейти до слота';go.title='Відкрити день і підсвітити цей слот';go.onclick=e=>{e.stopPropagation();focusRequestSlot(r);};
+    const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(go,ok,no);item.append(row,a);el.requestsList.appendChild(item);
   });
 }
 async function approve(id){try{syncStatus('saving');const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку підтверджено.','success');}catch(e){console.error(e);syncStatus('offline');toast(friendlyApproveError(e),'error',6000);}}
