@@ -14,13 +14,13 @@ const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],currentDate:new Date(),view:'day',filterType:'all',
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
-  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false
+  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,bulkSelectedLessonIds:new Set()
 };
 let el={};
 
 function $(id){return document.getElementById(id);}
 function cache(){
-  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
+  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn modal-bulk-lessons-btn bulk-lessons-modal close-bulk-lessons-modal-btn bulk-mode-add bulk-mode-manage bulk-add-panel bulk-manage-panel bulk-add-student-select bulk-add-date-input bulk-add-hour-select bulk-add-minute-select bulk-add-status-select bulk-add-repeat-select bulk-add-paid-select bulk-add-payment-group bulk-add-paid-amount bulk-add-paid-date bulk-add-paid-method bulk-add-topic bulk-add-homework bulk-add-submit bulk-from-date bulk-to-date bulk-student-filter bulk-refresh-list bulk-select-all bulk-clear-selection bulk-selected-count bulk-lessons-list bulk-edit-fields bulk-edit-student bulk-edit-date-mode bulk-edit-set-date-group bulk-edit-set-date bulk-edit-shift-group bulk-edit-shift-days bulk-edit-hour bulk-edit-minute bulk-edit-status bulk-edit-paid bulk-edit-paid-amount bulk-edit-paid-date bulk-edit-paid-method bulk-edit-repeat bulk-edit-topic bulk-edit-homework bulk-apply-edit bulk-delete-selected student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
@@ -439,6 +439,119 @@ function hideContext(){el.lessonContextMenu.classList.add('hidden');state.contex
 function showContext(x,y,a){state.contextLessonId=a.lessonId?String(a.lessonId):null;state.contextSlot=a.dateISO&&a.hour!=null?{dateISO:a.dateISO,hour:a.hour}:null;const l=state.contextLessonId?state.lessons.find(z=>z.id===state.contextLessonId):null;el.contextMenuEdit.style.display=l?'block':'none';el.contextMenuDelete.style.display=l?'block':'none';el.contextMenuAdd.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuToggle.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuDelete.disabled=!!l&&l.status!=='planned';el.lessonContextMenu.classList.remove('hidden');const r=el.lessonContextMenu.getBoundingClientRect(),mx=Math.max(4,innerWidth-r.width-4),my=Math.max(4,innerHeight-r.height-4);el.lessonContextMenu.style.left=Math.min(Math.max(4,x),mx)+'px';el.lessonContextMenu.style.top=Math.min(Math.max(4,y),my)+'px';}
 function setupContext(){document.addEventListener('click',hideContext);document.addEventListener('scroll',hideContext,true);el.lessonContextMenu.addEventListener('click',e=>e.stopPropagation());el.contextMenuEdit.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)openEditLesson(id);};el.contextMenuDelete.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)deleteLesson(id);};el.contextMenuAdd.onclick=()=>{const s=state.contextSlot;hideContext();if(s)openAddLesson(s.dateISO,s.hour);};el.contextMenuToggle.onclick=()=>{const s=state.contextSlot;hideContext();if(s)toggleSlot(s.dateISO,s.hour);};}
 function setupModals(){document.addEventListener('keydown',e=>{if(e.key!=='Escape'&&e.key!=='Enter')return;const m=document.querySelector('.modal:not(.hidden)');if(!m)return;e.preventDefault();const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn,b=id?$(id):null;if(b)b.click();});document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target!==m||innerWidth>640)return;const id=m.dataset.cancelBtn,b=id?$(id):null;if(b)b.click();}));}
+function setBulkMode(mode){
+  const add=mode==='add';
+  if(el.bulkModeAdd)el.bulkModeAdd.classList.toggle('active',add);
+  if(el.bulkModeManage)el.bulkModeManage.classList.toggle('active',!add);
+  if(el.bulkAddPanel)el.bulkAddPanel.style.display=add?'block':'none';
+  if(el.bulkManagePanel)el.bulkManagePanel.style.display=add?'none':'block';
+  if(!add)renderBulkLessonList();
+}
+function populateBulkSelects(){
+  const active=activeStudents();
+  const fill=(node,placeholder,withPlaceholder=true)=>{
+    if(!node)return;
+    node.innerHTML='';
+    if(withPlaceholder){const o=document.createElement('option');o.value='';o.textContent=placeholder;node.appendChild(o);}
+    active.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.name;node.appendChild(o);});
+  };
+  fill(el.bulkAddStudentSelect,'Оберіть учня',false);
+  fill(el.bulkStudentFilter,'Усі активні учні',true);
+  fill(el.bulkEditStudent,'Не змінювати',true);
+  [el.bulkAddHourSelect,el.bulkEditHour].forEach(node=>{
+    if(!node)return;node.innerHTML='';const o=document.createElement('option');o.value='';o.textContent='Не змінювати';node.appendChild(o);
+    for(let h=MIN_HOUR;h<=MAX_HOUR;h++){const x=document.createElement('option');x.value=String(h).padStart(2,'0');x.textContent=String(h).padStart(2,'0')+':00';node.appendChild(x);}
+  });
+  el.bulkAddHourSelect.value='18';
+  [el.bulkAddMinuteSelect,el.bulkEditMinute].forEach(node=>{
+    if(!node)return;node.innerHTML='';const o=document.createElement('option');o.value='';o.textContent='Не змінювати';node.appendChild(o);
+    for(let m=0;m<60;m+=5){const x=document.createElement('option');x.value=String(m).padStart(2,'0');x.textContent=String(m).padStart(2,'0');node.appendChild(x);}
+  });
+  el.bulkAddMinuteSelect.value='00';
+}
+function defaultBulkDates(){
+  if(!el.bulkAddDateInput||!el.bulkFromDate||!el.bulkToDate)return;
+  const t=new Date(),from=new Date(t.getFullYear(),t.getMonth(),1),to=new Date(t.getFullYear(),t.getMonth()+1,0);
+  if(!el.bulkAddDateInput.value)el.bulkAddDateInput.value=iso(t);
+  if(!el.bulkFromDate.value)el.bulkFromDate.value=iso(from);
+  if(!el.bulkToDate.value)el.bulkToDate.value=iso(to);
+  if(el.bulkAddPaidDate&&!el.bulkAddPaidDate.value)el.bulkAddPaidDate.value=el.bulkAddDateInput.value;
+}
+function openBulkLessons(){
+  el.settingsModal?.classList.add('hidden');
+  populateBulkSelects();defaultBulkDates();state.bulkSelectedLessonIds.clear();setBulkMode('add');
+  if(el.bulkAddPaidSelect)el.bulkAddPaidSelect.value='false';
+  if(el.bulkAddPaymentGroup)el.bulkAddPaymentGroup.style.display='none';
+  if(el.bulkLessonsModal)el.bulkLessonsModal.classList.remove('hidden');
+}
+function renderBulkLessonList(){
+  if(!el.bulkLessonsList)return;
+  const from=el.bulkFromDate?.value||'0000-01-01',to=el.bulkToDate?.value||'9999-12-31',sid=el.bulkStudentFilter?.value||'';
+  const list=state.lessons.filter(l=>l.date>=from&&l.date<=to&&(!sid||l.studentId===sid)).sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const visibleIds=new Set(list.map(l=>l.id));
+  state.bulkSelectedLessonIds=new Set(Array.from(state.bulkSelectedLessonIds).filter(id=>visibleIds.has(id)));
+  el.bulkLessonsList.innerHTML='';
+  if(!list.length){el.bulkLessonsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">За заданими умовами уроків не знайдено.</div>';updateBulkSelectedCount();return;}
+  list.forEach(l=>{
+    const row=document.createElement('label');row.className='bulk-lesson-row';
+    const cb=document.createElement('input');cb.type='checkbox';cb.checked=state.bulkSelectedLessonIds.has(l.id);cb.onchange=()=>{cb.checked?state.bulkSelectedLessonIds.add(l.id):state.bulkSelectedLessonIds.delete(l.id);updateBulkSelectedCount();};
+    const main=document.createElement('div');main.className='bulk-lesson-main';
+    const s=state.students.find(x=>x.id===l.studentId);
+    const strong=document.createElement('strong');strong.textContent=(s?s.name:'Невідомий учень')+(s?.archivedAt?' (архів)':'');
+    const meta=document.createElement('div');meta.className='bulk-lesson-meta';meta.textContent=prettyDate(l.date)+' · '+l.time+' · '+(l.status==='completed'?'проведений':l.status==='cancelled'?'скасований':'запланований')+' · '+(l.paid?'оплачено':'не оплачено');
+    main.append(strong,meta);row.append(cb,main);el.bulkLessonsList.appendChild(row);
+  });
+  updateBulkSelectedCount();
+}
+function updateBulkSelectedCount(){if(el.bulkSelectedCount)el.bulkSelectedCount.textContent='Вибрано: '+state.bulkSelectedLessonIds.size;}
+async function bulkAddLessons(){
+  const student=el.bulkAddStudentSelect?.value||'',date=el.bulkAddDateInput?.value||'',hour=el.bulkAddHourSelect?.value||'',minute=el.bulkAddMinuteSelect?.value||'',status=el.bulkAddStatusSelect?.value||'planned',repeat=parseInt(el.bulkAddRepeatSelect?.value||'1',10)||1,paid=el.bulkAddPaidSelect?.value==='true';
+  if(!student){toast('Оберіть учня для пакетного додавання.','error');el.bulkAddStudentSelect?.focus();return;}
+  if(!date||!hour||!minute){toast('Заповніть дату та час.','error');return;}
+  if(pastDate(date)&&!state.isEditMode){toast('Додавання уроку на минулу дату потребує режиму редагування.','error');return;}
+  try{
+    syncStatus('saving');
+    const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'add',p_lesson_ids:[],p_changes:{},p_additions:{student_id:student,start_date:date,lesson_time:hour+':'+minute,status,repeat_weeks:repeat,paid,paid_amount:paid?(parseFloat(el.bulkAddPaidAmount?.value)||DEFAULT_PAID_AMOUNT):null,paid_date:paid?(el.bulkAddPaidDate?.value||date):null,paid_method:paid?(el.bulkAddPaidMethod?.value||DEFAULT_PAID_METHOD):null,topic:el.bulkAddTopic?.value.trim()||null,homework:el.bulkAddHomework?.value.trim()||null}});
+    if(r.error)throw r.error;
+    await loadV2();render();toast('Додано уроків: '+Number(r.data||0),'success');renderBulkLessonList();
+  }catch(e){dbFail(e);}
+}
+function bulkEditChanges(){
+  const changes={},student=el.bulkEditStudent?.value||'',dateMode=el.bulkEditDateMode?.value||'none',hour=el.bulkEditHour?.value||'',minute=el.bulkEditMinute?.value||'',status=el.bulkEditStatus?.value||'',paid=el.bulkEditPaid?.value||'';
+  if(student)changes.student_id=student;
+  if(dateMode==='set'){const d=el.bulkEditSetDate?.value||'';if(!d)throw new Error('Оберіть нову дату.');changes.set_date=d;}
+  if(dateMode==='shift'){changes.shift_days=parseInt(el.bulkEditShiftDays?.value||'0',10)||0;}
+  if(hour||minute){if(!hour||!minute)throw new Error('Для масової зміни часу потрібно вибрати і годину, і хвилини.');changes.lesson_time=hour+':'+minute;}
+  if(status)changes.status=status;
+  if(paid){changes.paid=paid==='true';if(changes.paid){changes.paid_amount=el.bulkEditPaidAmount?.value||null;changes.paid_date=el.bulkEditPaidDate?.value||null;changes.paid_method=el.bulkEditPaidMethod?.value||null;}}
+  if(el.bulkEditTopic?.value.trim())changes.topic=el.bulkEditTopic.value.trim();
+  if(el.bulkEditHomework?.value.trim())changes.homework=el.bulkEditHomework.value.trim();
+  changes.repeat_weeks=parseInt(el.bulkEditRepeat?.value||'1',10)||1;
+  if(Object.keys(changes).length===1&&changes.repeat_weeks===1)throw new Error('Не вказано жодної зміни.');
+  return changes;
+}
+async function bulkApplyEdit(){
+  if(!state.bulkSelectedLessonIds.size){toast('Спочатку виберіть хоча б один урок.','error');return;}
+  let changes;try{changes=bulkEditChanges();}catch(e){toast(e.message,'error');return;}
+  try{
+    syncStatus('saving');
+    const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'update',p_lesson_ids:Array.from(state.bulkSelectedLessonIds),p_changes:changes,p_additions:{}});
+    if(r.error)throw r.error;
+    await loadV2();state.bulkSelectedLessonIds.clear();render();renderBulkLessonList();toast('Пакетно змінено записів: '+Number(r.data||0),'success');
+  }catch(e){dbFail(e);}
+}
+async function bulkDeleteSelected(){
+  if(!state.bulkSelectedLessonIds.size){toast('Спочатку виберіть хоча б один урок.','error');return;}
+  const selected=state.lessons.filter(l=>state.bulkSelectedLessonIds.has(l.id));
+  if(selected.some(l=>l.status!=='planned')){toast('Пакетно видаляти можна лише заплановані уроки.','error');return;}
+  if(!await confirmBox('Видалити вибрані уроки ('+selected.length+')? Операція буде виконана одним пакетом.'))return;
+  try{
+    syncStatus('saving');
+    const r=await db.rpc('v2_bulk_manage_lessons',{p_schedule_id:state.scheduleId,p_action:'delete',p_lesson_ids:Array.from(state.bulkSelectedLessonIds),p_changes:{},p_additions:{}});
+    if(r.error)throw r.error;
+    await loadV2();state.bulkSelectedLessonIds.clear();render();renderBulkLessonList();toast('Видалено уроків: '+Number(r.data||0),'success');
+  }catch(e){dbFail(e);}
+}
 function setupUI(){
   safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
   safeBind('settingsBtn','onclick',()=>el.settingsModal.classList.remove('hidden'));
@@ -457,6 +570,22 @@ function setupUI(){
   safeBind('modalAuditLogBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');});
   safeBind('closeAuditLogModalBtn','onclick',()=>el.auditLogModal.classList.add('hidden'));
   safeBind('modalBackupsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderBackups();el.backupsModal.classList.remove('hidden');});
+  safeBind('modalBulkLessonsBtn','onclick',openBulkLessons);
+  safeBind('closeBulkLessonsModalBtn','onclick',()=>el.bulkLessonsModal.classList.add('hidden'));
+  safeBind('bulkModeAdd','onclick',()=>setBulkMode('add'));
+  safeBind('bulkModeManage','onclick',()=>setBulkMode('manage'));
+  safeBind('bulkAddPaidSelect','onchange',()=>{el.bulkAddPaymentGroup.style.display=el.bulkAddPaidSelect.value==='true'?'grid':'none';});
+  safeBind('bulkAddDateInput','onchange',()=>{if(el.bulkAddPaidDate)el.bulkAddPaidDate.value=el.bulkAddDateInput.value;});
+  safeBind('bulkAddSubmit','onclick',bulkAddLessons);
+  safeBind('bulkRefreshList','onclick',renderBulkLessonList);
+  safeBind('bulkStudentFilter','onchange',renderBulkLessonList);
+  safeBind('bulkFromDate','onchange',renderBulkLessonList);
+  safeBind('bulkToDate','onchange',renderBulkLessonList);
+  safeBind('bulkSelectAll','onclick',()=>{const from=el.bulkFromDate?.value||'0000-01-01',to=el.bulkToDate?.value||'9999-12-31',sid=el.bulkStudentFilter?.value||'';state.lessons.filter(l=>l.date>=from&&l.date<=to&&(!sid||l.studentId===sid)).forEach(l=>state.bulkSelectedLessonIds.add(l.id));renderBulkLessonList();});
+  safeBind('bulkClearSelection','onclick',()=>{state.bulkSelectedLessonIds.clear();renderBulkLessonList();});
+  safeBind('bulkEditDateMode','onchange',e=>{if(el.bulkEditSetDateGroup)el.bulkEditSetDateGroup.style.display=e.target.value==='set'?'block':'none';if(el.bulkEditShiftGroup)el.bulkEditShiftGroup.style.display=e.target.value==='shift'?'block':'none';});
+  safeBind('bulkApplyEdit','onclick',bulkApplyEdit);
+  safeBind('bulkDeleteSelected','onclick',bulkDeleteSelected);
   safeBind('closeBackupsModalBtn','onclick',()=>el.backupsModal.classList.add('hidden'));
   safeBind('studentsInfoBtn','onclick',()=>{renderStudentsPicker();el.studentsPickerModal.classList.remove('hidden');});
   safeBind('closeStudentsPickerModalBtn','onclick',()=>el.studentsPickerModal.classList.add('hidden'));
