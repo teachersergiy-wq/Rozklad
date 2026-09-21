@@ -26,6 +26,10 @@ function cache(){
   el.prevBtn=el.prevDateBtn;
   el.nextBtn=el.nextDateBtn;
   el.slotLegend=$('slot-legend');
+  el.slotRequestModal=$('slot-request-modal');
+  el.slotRequestModalTitle=$('slot-request-modal-title');
+  el.slotRequestModalBody=$('slot-request-modal-body');
+  el.slotRequestModalCloseBtn=$('slot-request-modal-close-btn');
 }
 
 function safeBind(key,eventName,handler){
@@ -251,7 +255,11 @@ async function toggleSlot(date,h){
 }
 function attachFree(n,date,h,past){
   if(past&&!state.isEditMode)return;
-  n.classList.add('clickable');n.onclick=()=>state.isEditMode?toggleSlot(date,h):openAddLesson(date,h);
+  n.classList.add('clickable');n.onclick=()=>{
+    if(state.isEditMode){toggleSlot(date,h);return;}
+    if(Array.isArray(n._pendingRequests)&&n._pendingRequests.length){openSlotRequestModal(date,n._pendingRequests);return;}
+    openAddLesson(date,h);
+  };
   n.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showContext(e.clientX,e.clientY,{dateISO:date,hour:h});};
   n.ondragover=e=>{e.preventDefault();n.classList.add('drag-over');};n.ondragleave=()=>n.classList.remove('drag-over');
   n.ondrop=async e=>{e.preventDefault();n.classList.remove('drag-over');const id=e.dataTransfer.getData('text/plain');if(id)await moveLesson(id,date,time(h));};
@@ -269,6 +277,7 @@ function pendingRequestsForRange(date,start,end){
 function attachPendingRequestInfo(node,requests){
   if(!requests.length)return;
   node.classList.add('has-pending-request');
+  node._pendingRequests=requests;
   const marker=document.createElement('span');marker.className='pending-request-marker';marker.setAttribute('aria-hidden','true');marker.textContent=requests.length>1?'📝 Заявки: '+requests.length:'📝 Є заявка';node.appendChild(marker);
   node.dataset.pendingRequestCount=String(requests.length);
   node.dataset.pendingRequestIds=JSON.stringify(requests.map(r=>r.id));
@@ -476,6 +485,65 @@ function openRequestsForStudent(studentId){
   if(el.requestsModal)el.requestsModal.classList.remove('hidden');
   renderRequests();
 }
+function formatRequestCreatedAt(r){
+  return r.createdAt?new Date(r.createdAt).toLocaleString('uk-UA'):'невідомий час';
+}
+function requestTypeLabel(r){return r.type==='reschedule'?'Перенесення':'Запис';}
+function requestDetailsLabel(r){
+  return r.type==='reschedule'
+    ? 'Перенесення з '+prettyDate(r.oldDate||'')+' '+(r.oldTime||'')+' → '+prettyDate(r.date)+', '+r.time
+    : 'Запис на '+prettyDate(r.date)+', '+r.time;
+}
+function friendlyApproveError(e){
+  const msg=String(e?.message||e?.details||'').toLowerCase();
+  if(msg.includes('duplicate')||msg.includes('unique')||msg.includes('зайнят')||msg.includes('occupied')||msg.includes('конфлікт')){
+    return 'Не можна підтвердити заявку: обраний час уже зайнятий. Оновіть розклад і перевірте слот.';
+  }
+  if(msg.includes('заявку не знайдено')||msg.includes('not found')){
+    return 'Заявка вже недоступна. Оновіть список заявок.';
+  }
+  return 'Не вдалося підтвердити заявку. Оновіть розклад і спробуйте ще раз.';
+}
+function closeSlotRequestModal(){
+  if(el.slotRequestModal)el.slotRequestModal.classList.add('hidden');
+}
+async function approveFromSlot(id){
+  closeSlotRequestModal();
+  try{
+    syncStatus('saving');
+    const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});
+    if(r.error)throw r.error;
+    await loadV2();renderRequests();render();
+    toast('Заявку підтверджено.','success');
+  }catch(e){
+    console.error(e);
+    syncStatus('offline');
+    toast(friendlyApproveError(e),'error',6000);
+  }
+}
+async function rejectFromSlot(id){
+  closeSlotRequestModal();
+  await reject(id);
+}
+function openSlotRequestModal(date,requests){
+  if(!el.slotRequestModal||!el.slotRequestModalBody)return;
+  el.slotRequestModalTitle.textContent='📝 Запити на слот · '+prettyDate(date);
+  el.slotRequestModalBody.innerHTML='';
+  requests.forEach(r=>{
+    const card=document.createElement('div');card.className='slot-request-item';
+    const name=document.createElement('div');name.className='slot-request-name';name.textContent=r.studentName;
+    const type=document.createElement('div');type.className='slot-request-type';type.textContent=requestTypeLabel(r);
+    const target=document.createElement('div');target.className='slot-request-target';target.textContent=requestDetailsLabel(r);
+    const sent=document.createElement('div');sent.className='slot-request-sent';sent.textContent='Надіслано: '+formatRequestCreatedAt(r);
+    const actions=document.createElement('div');actions.className='slot-request-actions';
+    const ok=document.createElement('button');ok.type='button';ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approveFromSlot(r.id);
+    const no=document.createElement('button');no.type='button';no.className='danger';no.textContent='Відхилити';no.onclick=()=>rejectFromSlot(r.id);
+    actions.append(ok,no);
+    card.append(name,type,target,sent,actions);
+    el.slotRequestModalBody.appendChild(card);
+  });
+  el.slotRequestModal.classList.remove('hidden');
+}
 function renderRequests(){
   populateRequestsStudentFilter();
   const p=state.bookingRequests.filter(x=>x.status==='pending'&&(!state.requestsStudentId||x.studentId===String(state.requestsStudentId)));
@@ -489,7 +557,7 @@ function renderRequests(){
     const a=document.createElement('div');a.className='request-actions';const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(ok,no);item.append(row,a);el.requestsList.appendChild(item);
   });
 }
-async function approve(id){try{syncStatus('saving');const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку підтверджено.','success');}catch(e){dbFail(e);}}
+async function approve(id){try{syncStatus('saving');const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку підтверджено.','success');}catch(e){console.error(e);syncStatus('offline');toast(friendlyApproveError(e),'error',6000);}}
 async function reject(id){const q=state.bookingRequests.find(x=>x.id===String(id));if(!q)return;const s=state.students.find(x=>x.id===q.studentId);if(!await confirmBox(q.type==='reschedule'?'Відхилити запит на перенесення від '+(s?s.name:'учня')+'?':'Відхилити заявку від '+(s?s.name:'учня')+' на '+q.date+' '+q.time+'?'))return;try{syncStatus('saving');const r=await db.rpc('v2_reject_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку відхилено.','info');}catch(e){dbFail(e);}}
 async function takeBackup(){if(!state.scheduleId)return;if(!await confirmBox('Створити серверний знімок поточного V2-розкладу?'))return;try{syncStatus('saving');const r=await db.rpc('v2_take_schedule_snapshot',{p_schedule_id:state.scheduleId});if(r.error)throw r.error;await loadV2();renderBackups();toast('Бекап створено на сервері.','success');}catch(e){dbFail(e);}}
 function renderBackups(){
