@@ -241,6 +241,11 @@
     .stat-card { flex: 1; min-width: 120px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
     .stat-card b { display: block; font-size: 1.2rem; color: var(--text-strong); }
     .stat-card span { font-size: 0.75rem; color: var(--text-muted); }
+    .student-debt-notice { width:100%; padding:9px 11px; border-radius:8px; margin:10px 0; font-size:.84rem; font-weight:700; line-height:1.35; }
+    .student-debt-notice.unpaid { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
+    .student-debt-notice.clear { background:#f0fdf4; border:1px solid #86efac; color:#166534; }
+    [data-theme="dark"] .student-debt-notice.unpaid { background:#3a2417; border-color:#fb923c; color:#fed7aa; }
+    [data-theme="dark"] .student-debt-notice.clear { background:#12351f; border-color:#22c55e; color:#bbf7d0; }
 
     .issue-item { background: #fef3c7; color: #92400e; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 0.82rem; font-weight: 500; }
     .issue-item.ok { background: #dcfce7; color: #15803d; }
@@ -848,6 +853,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20260921-9"></script>
+  <script src="app.js?v=20260921-10"></script>
 </body>
 </html>
