@@ -410,8 +410,25 @@ async function addStudent(){
   const name=el.newStudentName.value.trim();if(!name){toast("Введіть ім'я учня.",'error');return;}try{syncStatus('saving');const r=await db.from('v2_students').insert({schedule_id:state.scheduleId,name:name,grade:el.newStudentGrade.value.trim()||null,phone:el.newStudentPhone.value.trim()||null,parent_name:el.newStudentParentName.value.trim()||null,parent_phone:el.newStudentParentPhone.value.trim()||null,color:state.selectedNewStudentColor,cooperation_platform:el.newStudentCooperationPlatform.value||null});if(r.error)throw r.error;await loadV2();clearStudentForm();el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');renderStudents();render();toast('Учня додано.','success');}catch(e){dbFail(e);}
 }
 async function updateStudent(id,patch){try{const r=await db.from('v2_students').update(patch).eq('id',String(id)).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();renderStudents();render();}catch(e){dbFail(e);}}
+async function fetchPendingRequestCount(studentId){
+  const r=await db.from('v2_booking_requests')
+    .select('id')
+    .eq('schedule_id',state.scheduleId)
+    .eq('student_id',String(studentId))
+    .eq('status','pending');
+  if(r.error)throw r.error;
+  return Array.isArray(r.data)?r.data.length:0;
+}
 async function archiveStudent(s){
-  const pendingCount=state.bookingRequests.filter(x=>x.status==='pending'&&x.studentId===String(s.id)).length;
+  let pendingCount;
+  try{
+    // Re-read pending requests from the server immediately before archiving.
+    // This avoids relying on a stale teacher-page cache when a student just sent a request.
+    pendingCount=await fetchPendingRequestCount(s.id);
+  }catch(e){
+    dbFail(e);
+    return;
+  }
   if(pendingCount){
     const open=await confirmBox('Не можна архівувати учня "'+s.name+'". Спочатку розгляньте запити учня (підтвердьте або відхиліть), потім архівуйте. Очікує запитів: '+pendingCount+'. Відкрити заявки цього учня?');
     if(open)openRequestsForStudent(s.id);
@@ -455,7 +472,11 @@ function personalLink(id){const s=state.students.find(x=>x.id===String(id));if(!
 function openStudent(id){
   const s=state.students.find(x=>x.id===String(id));if(!s)return;state.currentInfoStudentId=s.id;el.studentInfoTitle.textContent=s.name;
   el.studentInfoFields.innerHTML=(s.archivedAt?'<div class="student-archive-note" style="margin-bottom:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);font-size:.8rem;font-weight:700;">🔒 Архівований: перегляд історії лише до '+esc(prettyDate(String(s.archivedAt).slice(0,10)))+'. Запис і перенесення уроків недоступні.</div>':'')+'<div class="info-row"><span>Клас</span><span>'+(esc(s.grade)||'—')+'</span></div><div class="info-row"><span>Платформа</span><span>'+esc(platformLabel(s))+'</span></div><div class="info-row"><span>Контактний телефон</span><span>'+(esc(s.phone)||'—')+'</span></div><div class="info-row"><span>Ім\'я батьків</span><span>'+(esc(s.parentName)||'—')+'</span></div><div class="info-row"><span>Телефон батьків</span><span>'+(esc(s.parentPhone)||'—')+'</span></div>';
-  const st=studentStats(s.id);el.studentInfoStats.innerHTML='<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);el.studentInfoModal.classList.remove('hidden');
+  const st=studentStats(s.id);
+  const debtNotice=st.completedUnpaid>0
+    ? '<div class="student-debt-notice unpaid">⚠️ Заборгованість: <b>'+st.completedUnpaid+'</b> проведених уроків не оплачено.</div>'
+    : '<div class="student-debt-notice clear">✓ Заборгованості за проведеними уроками немає.</div>';
+  el.studentInfoStats.innerHTML=debtNotice+'<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);el.studentInfoModal.classList.remove('hidden');
 }
 function renderStudentsPicker(){
   el.studentsPickerList.innerHTML='';activeStudents().forEach(s=>{const x=document.createElement('div');x.className='clickable-list-item';x.style.backgroundColor=s.color||COLORS[0];x.innerHTML='<span>'+esc(s.name)+'</span><span style="font-weight:500;font-size:.8rem;color:#475569;">'+esc(s.grade||'')+'</span>';x.onclick=()=>{el.studentsPickerModal.classList.add('hidden');openStudent(s.id);};el.studentsPickerList.appendChild(x);});
@@ -731,6 +752,7 @@ function setupUI(){
   safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');state.requestsStudentId=null;renderRequests();el.requestsModal.classList.remove('hidden');});
   safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
   safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
+  safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
   safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
   safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
   safeBind('reportPeriodSelect','onchange',()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none');
