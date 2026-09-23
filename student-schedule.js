@@ -12,6 +12,8 @@ const state = {
   student: null,
   settings: { minHour:9, maxHour:21, defaultOpenHour:18 },
   ownLessons: [],
+  completedHistory: [],
+  completedHistoryLoaded: false,
   busySlots: [],
   openOverrides: [],
   closedOverrides: [],
@@ -79,9 +81,9 @@ async function loadStudentSchedule(){
   if(!db)throw new Error('Supabase-клієнт не ініціалізовано.');
   if(!state.token)throw new Error('У посиланні немає персонального токена учня.');
 
-  const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
+  const range=getViewRange();
   const r=await db.rpc('v2_get_student_schedule',{
-    p_token:state.token,p_from:iso(start),p_to:iso(end)
+    p_token:state.token,p_from:iso(range.from),p_to:iso(range.to)
   });
   if(r.error)throw r.error;
   if(!r.data||!r.data.student)throw new Error('Невірне або застаріле персональне посилання.');
@@ -102,6 +104,114 @@ async function loadStudentSchedule(){
   })):[];
 }
 
+function getViewRange(){
+  const y=state.currentDate.getFullYear(),m=state.currentDate.getMonth();
+  if(state.view==='month'){
+    return {from:new Date(y,m,1),to:new Date(y,m+1,0)};
+  }
+  if(state.view==='year'){
+    return {from:new Date(y,0,1),to:new Date(y,11,31)};
+  }
+  const from=monday(state.currentDate),to=new Date(from);to.setDate(from.getDate()+6);
+  return {from,to};
+}
+function periodLabel(){
+  const r=getViewRange();
+  if(state.view==='month')return r.from.toLocaleDateString('uk-UA',{month:'long',year:'numeric'});
+  if(state.view==='year')return String(r.from.getFullYear());
+  return r.from.getDate()+' '+MONTH_NAMES[r.from.getMonth()]+' - '+r.to.getDate()+' '+MONTH_NAMES[r.to.getMonth()];
+}
+function viewTitle(view){
+  return view==='month'?'Місяць':view==='year'?'Рік':'Тиждень';
+}
+async function loadCompletedHistory(){
+  if(state.completedHistoryLoaded)return;
+  const to=new Date();to.setHours(23,59,59,999);
+  const from=new Date(2000,0,1);
+  try{
+    const r=await db.rpc('v2_get_student_schedule',{p_token:state.token,p_from:iso(from),p_to:iso(to)});
+    if(r.error)throw r.error;
+    const rows=Array.isArray(r.data?.ownLessons)?r.data.ownLessons:[];
+    state.completedHistory=rows.filter(x=>x.status==='completed').map(x=>({
+      id:String(x.id),date:String(x.date),time:String(x.time||'00:00').slice(0,5),
+      status:'completed',topic:x.topic||'',homework:x.homework||'',
+      paid:!!x.paid,paidAmount:x.paidAmount==null?null:Number(x.paidAmount),paidMethod:x.paidMethod||null
+    })).sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+    state.completedHistoryLoaded=true;
+    renderCompletedHistory();
+  }catch(e){
+    console.error(e);
+    state.completedHistoryLoaded=false;
+    toast(e.message||'Не вдалося завантажити історію проведених уроків.','error',6000);
+  }
+}
+function renderCompletedHistory(){
+  const host=$('completed-lessons-list');
+  const count=$('completed-lessons-count');
+  if(!host)return;
+  const rows=state.completedHistory||[];
+  if(count)count.textContent='Усього проведено: '+rows.length;
+  if(!rows.length){host.innerHTML='<div class="loading">Проведених уроків не знайдено.</div>';return;}
+  host.innerHTML='';
+  rows.forEach(l=>{
+    const item=document.createElement('div');item.className='completed-lesson-item';
+    const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=prettyDate(l.date)+' · '+l.time;
+    const topic=document.createElement('div');topic.className='completed-lesson-topic';topic.textContent=l.topic||'Тема не вказана';
+    const meta=document.createElement('div');meta.className='completed-lesson-meta';
+    const paid=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':''):'Не оплачено';
+    meta.textContent='Домашнє завдання: '+(l.homework||'—')+' · '+paid;
+    item.append(date,topic,meta);host.appendChild(item);
+  });
+}
+function renderCalendarMonth(){
+  const host=els.scheduleContainer;host.className='calendar-month';host.innerHTML='';
+  const y=state.currentDate.getFullYear(),m=state.currentDate.getMonth();
+  const first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate();
+  DAY_NAMES.forEach(d=>{const h=document.createElement('div');h.className='calendar-weekday';h.textContent=d;host.appendChild(h);});
+  for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-month-cell empty';host.appendChild(e);}
+  for(let day=1;day<=total;day++){
+    const date=iso(new Date(y,m,day)),cell=document.createElement('div');cell.className='calendar-month-cell';
+    const num=document.createElement('div');num.className='calendar-month-day-num';num.textContent=day;cell.appendChild(num);
+    state.ownLessons.filter(l=>l.date===date).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{
+      const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson';b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(l.status==='completed'?'Проведено':'Заплановано')+'</small>';b.onclick=()=>showLesson(l);cell.appendChild(b);
+    });
+    host.appendChild(cell);
+  }
+  while(host.children.length%7!==0){const e=document.createElement('div');e.className='calendar-month-cell empty';host.appendChild(e);}
+}
+function renderCalendarYear(){
+  const host=els.scheduleContainer;host.className='calendar-year';host.innerHTML='';
+  const y=state.currentDate.getFullYear();
+  for(let m=0;m<12;m++){
+    const card=document.createElement('section');card.className='calendar-year-month';
+    const title=document.createElement('button');title.type='button';title.className='calendar-year-title';title.textContent=new Date(y,m,1).toLocaleDateString('uk-UA',{month:'long'});title.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,1);await loadStudentSchedule();render();};
+    card.appendChild(title);
+    const weekdays=document.createElement('div');weekdays.className='calendar-year-weekdays';DAY_NAMES.forEach(d=>{const x=document.createElement('div');x.textContent=d;weekdays.appendChild(x);});card.appendChild(weekdays);
+    const grid=document.createElement('div');grid.className='calendar-year-days';
+    const first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate();
+    for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-year-day empty';grid.appendChild(e);}
+    for(let day=1;day<=total;day++){
+      const date=iso(new Date(y,m,day)),lessons=state.ownLessons.filter(l=>l.date===date),completed=lessons.filter(l=>l.status==='completed').length,planned=lessons.filter(l=>l.status==='planned').length;
+      const cell=document.createElement('button');cell.type='button';cell.className='calendar-year-day';cell.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,day);await loadStudentSchedule();render();};
+      const n=document.createElement('span');n.className='calendar-year-day-num';n.textContent=day;cell.appendChild(n);
+      const counts=document.createElement('span');counts.className='calendar-year-counts';
+      if(completed){const q=document.createElement('span');q.className='completed';q.textContent=completed;counts.appendChild(q);}
+      if(planned){const q=document.createElement('span');q.className='planned';q.textContent=planned;counts.appendChild(q);}
+      cell.appendChild(counts);grid.appendChild(cell);
+    }
+    while(grid.children.length%7!==0){const e=document.createElement('div');e.className='calendar-year-day empty';grid.appendChild(e);}
+    card.appendChild(grid);host.appendChild(card);
+  }
+}
+function render(){
+  const title=els.currentWeekDisplay;
+  if(title)title.textContent=periodLabel();
+  if(els.scheduleContainer){els.scheduleContainer.dataset.view=state.view;}
+  if(state.view==='month')renderCalendarMonth();
+  else if(state.view==='year')renderCalendarYear();
+  else renderWeek();
+  renderPendingCounter();
+}
 function busy(date,h){return state.busySlots.some(x=>x.date===date&&x.time===time(h));}
 function ownLesson(date,h){return state.ownLessons.find(x=>x.date===date&&parseInt(x.time.split(':')[0],10)===h)||null;}
 function pendingBooking(date,h){return state.pendingRequests.find(x=>x.type==='booking'&&x.date===date&&x.time===time(h))||null;}
@@ -377,9 +487,14 @@ function setupModals(){
 
 function setupUI(){
   els.themeToggleBtn.onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
-  els.prevWeekBtn.onclick=async()=>{state.hourPicker=null;state.currentDate.setDate(state.currentDate.getDate()-7);await loadStudentSchedule();renderWeek();};
-  els.nextWeekBtn.onclick=async()=>{state.hourPicker=null;state.currentDate.setDate(state.currentDate.getDate()+7);await loadStudentSchedule();renderWeek();};
-  els.todayBtn.onclick=async()=>{state.hourPicker=null;state.currentDate=new Date();await loadStudentSchedule();renderWeek();};
+  els.prevWeekBtn.onclick=async()=>{state.hourPicker=null;if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);else state.currentDate=new Date(state.currentDate.getFullYear()-1,0,1);await loadStudentSchedule();render();};
+  els.nextWeekBtn.onclick=async()=>{state.hourPicker=null;if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);else state.currentDate=new Date(state.currentDate.getFullYear()+1,0,1);await loadStudentSchedule();render();};
+  els.todayBtn.onclick=async()=>{state.hourPicker=null;state.currentDate=new Date();await loadStudentSchedule();render();};
+  $('view-week-btn').onclick=async()=>{state.view='week';state.hourPicker=null;await loadStudentSchedule();render();};
+  $('view-month-btn').onclick=async()=>{state.view='month';state.hourPicker=null;await loadStudentSchedule();render();};
+  $('view-year-btn').onclick=async()=>{state.view='year';state.hourPicker=null;await loadStudentSchedule();render();};
+  $('completed-lessons-btn').onclick=async()=>{document.getElementById('completed-lessons-modal').classList.remove('hidden');await loadCompletedHistory();renderCompletedHistory();};
+  $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
   els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
   els.rescheduleBannerCancelBtn.onclick=()=>{state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');renderWeek();};
   window.addEventListener('resize',renderWeek);
@@ -399,7 +514,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     await loadStudentSchedule();
     els.pageTitle.textContent='📅 '+(state.archived?'Історія розкладу · ':'Вітаємо, ')+state.student.name+'!';
     els.pageSubtitle.textContent=state.archived?'Перегляд історії уроків доступний до дати архівації. Запис і перенесення призупинені.':'Тут показано ваші уроки та доступні години для запису.';
-    renderWeek();
+    render();
   }catch(e){
     console.error(e);
     els.pageTitle.textContent='❗ Посилання недійсне';
