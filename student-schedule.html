@@ -82,6 +82,34 @@
     .slot-free.reschedule-target { border: 2px dashed var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
     .slot-pending { border: 1px dashed var(--pending-border); border-radius: 6px; color: var(--pending-text); font-size: 0.75rem; min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--pending-bg); font-weight: 700; text-align: center; padding: 6px; }
     .no-slots { color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 8px; }
+    .view-switch { display:flex; justify-content:center; gap:6px; margin:0 auto 10px; flex-wrap:wrap; }
+    .view-switch button { min-width:88px; }
+    .view-switch button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .calendar-month { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px; max-width:1100px; margin:0 auto; }
+    .calendar-weekday { padding:6px 2px; text-align:center; font-size:.75rem; font-weight:800; color:var(--text-muted); }
+    .calendar-month-cell { min-height:105px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px; overflow:hidden; }
+    .calendar-month-cell.empty { background:transparent; border-style:dashed; opacity:.45; }
+    .calendar-month-day-num { font-size:.78rem; font-weight:800; color:var(--text-strong); margin-bottom:4px; }
+    .calendar-month-lesson { width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; margin-top:4px; padding:5px 6px; border-radius:6px; border:1px solid var(--border-strong); font-size:.68rem; line-height:1.2; }
+    .calendar-month-lesson span { width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .calendar-month-lesson small { color:var(--text-muted); font-size:.62rem; font-weight:700; }
+    .calendar-year { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; max-width:1100px; margin:0 auto; }
+    .calendar-year-month { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; }
+    .calendar-year-title { width:100%; border:none; background:transparent; font-size:1rem; font-weight:800; color:var(--text-strong); padding:4px; }
+    .calendar-year-weekdays,.calendar-year-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; }
+    .calendar-year-weekdays div { text-align:center; color:var(--text-muted); font-size:.6rem; font-weight:800; }
+    .calendar-year-day { min-height:28px; padding:2px; border-radius:5px; border:1px solid transparent; background:var(--surface-alt); color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:.65rem; }
+    .calendar-year-day.empty { background:transparent; }
+    .calendar-year-day-num { font-weight:800; }
+    .calendar-year-counts { display:flex; gap:3px; font-size:.56rem; font-weight:900; }
+    .calendar-year-counts .completed { color:#2563eb; }
+    .calendar-year-counts .planned { color:#ca8a04; }
+    .completed-history-btn { display:block; margin:0 auto 12px; }
+    .completed-lessons-list { max-height:65vh; overflow:auto; display:flex; flex-direction:column; gap:7px; }
+    .completed-lesson-item { padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-alt); }
+    .completed-lesson-date { font-size:.76rem; color:var(--text-muted); font-weight:800; }
+    .completed-lesson-topic { margin-top:3px; font-size:.85rem; font-weight:800; color:var(--text-strong); }
+    .completed-lesson-meta { margin-top:3px; font-size:.7rem; color:var(--text-muted); line-height:1.35; }
 
     /* Власні уроки учня в розкладі */
     .slot-lesson { border-radius: 6px; font-size: 0.75rem; min-height: 44px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; padding: 6px; cursor: pointer; }
@@ -186,8 +214,15 @@
     <button id="next-week-btn">&gt;</button>
   </div>
   <div class="nav-row">
-    <button id="today-btn" class="primary">Поточний тиждень</button>
+    <button id="today-btn" class="primary">Поточний період</button>
   </div>
+
+  <div class="view-switch" role="tablist" aria-label="Режим перегляду">
+    <button id="view-week-btn" class="active" type="button" role="tab">Тиждень</button>
+    <button id="view-month-btn" type="button" role="tab">Місяць</button>
+    <button id="view-year-btn" type="button" role="tab">Рік</button>
+  </div>
+  <button id="completed-lessons-btn" class="completed-history-btn" type="button">📚 Проведені уроки</button>
 
   <div id="schedule-container">
     <div class="loading">Завантаження розкладу...</div>
@@ -204,6 +239,18 @@
     </div>
   </div>
 
+  <!-- Історія проведених уроків -->
+  <div id="completed-lessons-modal" class="modal hidden" data-cancel-btn="completed-lessons-close-btn">
+    <div class="modal-content" style="max-width:640px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h2 style="margin:0;color:var(--text-strong);">Проведені уроки</h2>
+        <button id="completed-lessons-close-btn" type="button">Закрити</button>
+      </div>
+      <div id="completed-lessons-count" style="margin:8px 0 10px;color:var(--text-muted);font-size:.8rem;font-weight:700;"></div>
+      <div id="completed-lessons-list" class="completed-lessons-list"><div class="loading">Завантаження...</div></div>
+    </div>
+  </div>
+
   <!-- Деталі уроку учня -->
   <div id="lesson-detail-modal" class="modal hidden" data-cancel-btn="lesson-detail-close-btn">
     <div class="modal-content">
@@ -216,6 +263,6 @@
     </div>
   </div>
 
-  <script src="student-schedule.js?v=20260921-5"></script>
+  <script src="student-schedule.js?v=20260923-2"></script>
 </body>
 </html>
