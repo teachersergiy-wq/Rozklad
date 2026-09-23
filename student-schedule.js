@@ -14,6 +14,8 @@ const state = {
   ownLessons: [],
   completedHistory: [],
   completedHistoryLoaded: false,
+  completedHistoryLoading: false,
+  completedHistoryError: '',
   busySlots: [],
   openOverrides: [],
   closedOverrides: [],
@@ -125,35 +127,85 @@ function periodLabel(){
 function viewTitle(view){
   return view==='month'?'Місяць':view==='year'?'Рік':'Тиждень';
 }
-async function loadCompletedHistory(){
-  if(state.completedHistoryLoaded)return;
-  const to=new Date();to.setHours(23,59,59,999);
+async function loadCompletedHistory(force=false){
+  if(state.completedHistoryLoaded&&!force){
+    renderCompletedHistory();
+    return;
+  }
+
+  state.completedHistoryLoading=true;
+  state.completedHistoryError='';
+  // Show already-known completed lessons immediately, then refresh from the server.
+  state.completedHistory=state.ownLessons.filter(x=>x.status==='completed').map(x=>({
+    id:String(x.id),date:String(x.date),time:String(x.time||'00:00').slice(0,5),
+    status:'completed',topic:x.topic||'',homework:x.homework||'',
+    paid:!!x.paid,paidAmount:x.paidAmount==null?null:Number(x.paidAmount),paidMethod:x.paidMethod||null
+  }));
+  renderCompletedHistory();
+
+  const to=new Date();
+  to.setHours(23,59,59,999);
   const from=new Date(2000,0,1);
   try{
-    const r=await db.rpc('v2_get_student_schedule',{p_token:state.token,p_from:iso(from),p_to:iso(to)});
+    const r=await db.rpc('v2_get_student_schedule',{
+      p_token:state.token,p_from:iso(from),p_to:iso(to)
+    });
     if(r.error)throw r.error;
-    const rows=Array.isArray(r.data?.ownLessons)?r.data.ownLessons:[];
-    state.completedHistory=rows.filter(x=>x.status==='completed').map(x=>({
+
+    const payload=r.data&&typeof r.data==='object'&&!Array.isArray(r.data)
+      ?r.data
+      :Array.isArray(r.data)&&r.data[0]&&typeof r.data[0]==='object'
+        ?r.data[0]
+        :{};
+    const rows=Array.isArray(payload.ownLessons)?payload.ownLessons:[];
+    state.completedHistory=rows.filter(x=>x&&x.status==='completed').map(x=>({
       id:String(x.id),date:String(x.date),time:String(x.time||'00:00').slice(0,5),
       status:'completed',topic:x.topic||'',homework:x.homework||'',
       paid:!!x.paid,paidAmount:x.paidAmount==null?null:Number(x.paidAmount),paidMethod:x.paidMethod||null
     })).sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+
     state.completedHistoryLoaded=true;
-    renderCompletedHistory();
+    state.completedHistoryError='';
   }catch(e){
-    console.error(e);
-    state.completedHistoryLoaded=false;
-    toast(e.message||'Не вдалося завантажити історію проведених уроків.','error',6000);
+    console.error('Completed history load failed:',e);
+    state.completedHistoryError=e&&e.message?e.message:'Не вдалося оновити історію проведених уроків.';
+  }finally{
+    state.completedHistoryLoading=false;
+    renderCompletedHistory();
   }
 }
 function renderCompletedHistory(){
   const host=$('completed-lessons-list');
   const count=$('completed-lessons-count');
   if(!host)return;
-  const rows=state.completedHistory||[];
+  const rows=(state.completedHistory||[]).slice().sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
   if(count)count.textContent='Усього проведено: '+rows.length;
-  if(!rows.length){host.innerHTML='<div class="loading">Проведених уроків не знайдено.</div>';return;}
+
+  if(state.completedHistoryLoading&&rows.length===0){
+    host.innerHTML='<div class="loading">Завантаження проведених уроків...</div>';
+    return;
+  }
+
   host.innerHTML='';
+  if(state.completedHistoryError){
+    const note=document.createElement('div');
+    note.className='completed-history-error';
+    note.textContent=rows.length
+      ?'Не вдалося оновити історію з сервера. Показано вже завантажені проведені уроки.'
+      :state.completedHistoryError;
+    host.appendChild(note);
+  }
+
+  if(!rows.length){
+    if(!state.completedHistoryError){
+      const empty=document.createElement('div');
+      empty.className='loading';
+      empty.textContent=state.completedHistoryLoading?'Завантаження проведених уроків...':'Проведених уроків не знайдено.';
+      host.appendChild(empty);
+    }
+    return;
+  }
+
   rows.forEach(l=>{
     const item=document.createElement('div');item.className='completed-lesson-item';
     const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=prettyDate(l.date)+' · '+l.time;
@@ -161,7 +213,8 @@ function renderCompletedHistory(){
     const meta=document.createElement('div');meta.className='completed-lesson-meta';
     const paid=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':''):'Не оплачено';
     meta.textContent='Домашнє завдання: '+(l.homework||'—')+' · '+paid;
-    item.append(date,topic,meta);host.appendChild(item);
+    item.append(date,topic,meta);
+    host.appendChild(item);
   });
 }
 function renderCalendarMonth(){
@@ -563,7 +616,11 @@ function setupUI(){
   $('view-week-btn').onclick=()=>switchView('week');
   $('view-month-btn').onclick=()=>switchView('month');
   $('view-year-btn').onclick=()=>switchView('year');
-  $('completed-lessons-btn').onclick=async()=>{document.getElementById('completed-lessons-modal').classList.remove('hidden');await loadCompletedHistory();renderCompletedHistory();};
+  $('completed-lessons-btn').onclick=async()=>{
+    const modal=document.getElementById('completed-lessons-modal');
+    modal.classList.remove('hidden');
+    await loadCompletedHistory(true);
+  };
   $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
   els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
   els.rescheduleBannerCancelBtn.onclick=()=>{state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');renderWeek();};
