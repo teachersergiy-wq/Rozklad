@@ -203,10 +203,28 @@ function renderCalendarYear(){
     card.appendChild(grid);host.appendChild(card);
   }
 }
+function updateViewButtons(){
+  const buttons=[
+    ['view-week-btn','week'],
+    ['view-month-btn','month'],
+    ['view-year-btn','year']
+  ];
+  buttons.forEach(([id,view])=>{
+    const btn=$(id);
+    if(!btn)return;
+    const active=state.view===view;
+    btn.classList.toggle('active',active);
+    btn.setAttribute('aria-selected',active?'true':'false');
+  });
+}
 function render(){
   const title=els.currentWeekDisplay;
   if(title)title.textContent=periodLabel();
-  if(els.scheduleContainer){els.scheduleContainer.dataset.view=state.view;}
+  updateViewButtons();
+  if(els.scheduleContainer){
+    els.scheduleContainer.dataset.view=state.view;
+    els.scheduleContainer.className=state.view==='month'?'calendar-month':state.view==='year'?'calendar-year':'schedule-week';
+  }
   if(state.view==='month')renderCalendarMonth();
   else if(state.view==='year')renderCalendarYear();
   else renderWeek();
@@ -497,7 +515,7 @@ function setupUI(){
   $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
   els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
   els.rescheduleBannerCancelBtn.onclick=()=>{state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');renderWeek();};
-  window.addEventListener('resize',renderWeek);
+  window.addEventListener('resize',()=>render());
   setupModals();
 }
 
