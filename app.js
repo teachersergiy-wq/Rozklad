@@ -143,8 +143,13 @@ function pastSlot(s,h){const p=s.split('-').map(Number);return new Date(p[0],p[1
 function time(h){return String(h).padStart(2,'0')+':00';}
 function esc(v){const d=document.createElement('div');d.textContent=v==null?'':String(v);return d.innerHTML;}
 
-async function authUser(){
+async function authUser(knownUser=null){
   if(!db)throw new Error('Supabase-клієнт не ініціалізовано.');
+  if(knownUser){
+    state.user=knownUser;
+    return state.user;
+  }
+  if(state.user)return state.user;
   const r=await db.auth.getSession();
   if(r.error)throw r.error;
   const user=r.data&&r.data.session&&r.data.session.user;
@@ -838,9 +843,32 @@ function setupUI(){
     }
   }catch(e){console.error('UI binding failed: logout-teacher-btn',e);}
 }
-async function start(gate){
-  try{await authUser();gate.style.display='none';setVisible(true);cache();populateLessonTimeSelects();theme(localStorage.getItem(THEME_KEY)||'light');setupUI();setupModals();setupContext();await loadV2();renderSwatches();render();await autoComplete();render();}
-  catch(e){setVisible(false);gate.style.display='flex';const m=$('teacher-login-message');if(m)m.textContent=e.message||'Не вдалося відкрити V2-розклад.';}
+async function start(gate,knownUser=null){
+  const m=$('teacher-login-message');
+  try{
+    if(knownUser)state.user=knownUser;
+    await authUser(knownUser);
+    if(m)m.textContent='Авторизацію підтверджено. Завантаження розкладу...';
+    gate.style.display='none';
+    setVisible(true);
+    cache();
+    populateLessonTimeSelects();
+    theme(localStorage.getItem(THEME_KEY)||'light');
+    setupUI();
+    setupModals();
+    setupContext();
+    await loadV2();
+    renderSwatches();
+    render();
+    await autoComplete();
+    render();
+  }catch(e){
+    console.error('Teacher app start failed:',e);
+    setVisible(false);
+    gate.style.display='flex';
+    const msg=e&&e.message?e.message:'Не вдалося відкрити V2-розклад.';
+    if(m)m.textContent='Вхід виконано, але розклад не вдалося завантажити: '+msg;
+  }
 }
 document.addEventListener('DOMContentLoaded',async()=>{
   let gate;
@@ -849,11 +877,24 @@ document.addEventListener('DOMContentLoaded',async()=>{
   async function login(){
     if(!db){if(msg)msg.textContent='Supabase-клієнт недоступний.';return;}
     try{
-      if(button)button.disabled=true;if(msg)msg.textContent='Вхід...';
-      const r=await db.auth.signInWithPassword({email:email?.value.trim()||'',password:password?.value||''});
-      if(r.error)throw r.error;if(msg)msg.textContent='';await start(gate);
-    }catch(e){console.error(e);if(msg)msg.textContent=e.message||'Не вдалося увійти.';}
-    finally{if(button)button.disabled=false;}
+      if(button)button.disabled=true;
+      if(msg)msg.textContent='Вхід...';
+      const r=await db.auth.signInWithPassword({
+        email:email?.value.trim()||'',
+        password:password?.value||''
+      });
+      if(r.error)throw r.error;
+      const signedInUser=r.data&&r.data.user;
+      if(!signedInUser)throw new Error('Supabase не повернув користувача після входу.');
+      state.user=signedInUser;
+      if(msg)msg.textContent='Авторизацію успішно виконано. Завантаження розкладу...';
+      await start(gate,signedInUser);
+    }catch(e){
+      console.error('Teacher login failed:',e);
+      if(msg)msg.textContent=e.message||'Не вдалося увійти.';
+    }finally{
+      if(button)button.disabled=false;
+    }
   }
   safeDomBind('teacher-login-btn','onclick',login);
   safeDomBind('teacher-forgot-btn','onclick',()=>requestPasswordRecovery());
