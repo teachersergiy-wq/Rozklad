@@ -305,8 +305,8 @@
       .slot-request-actions button { width: 100%; }
       .header-main-row { gap:6px; }
       .header-main-row h1 { font-size:1.05rem; }
-      .header .date-group { justify-content:flex-end; gap:3px; }
-      .header .date-group button { padding:6px 8px; font-size:.78rem; }
+      .header .date-group { justify-content:space-between; gap:2px; min-width:0; }
+      .header .date-group button { padding:5px 6px; font-size:.76rem; min-width:0; }
       .header .view-group { justify-content:space-between; }
       .header .view-group button { flex:1 1 0; padding:6px 5px; font-size:.78rem; }
       .tools-row { justify-content:flex-start; }
@@ -322,7 +322,9 @@
       .view-group { width: 100%; justify-content: space-between; }
       .view-group button { flex: 1; text-align: center; }
       .filter-group select { flex: 1; min-width: 0; }
-      #current-date-display { flex: 1; font-size: 0.9rem; }
+      #current-date-display { flex:1 1 auto; min-width:0; max-width:100%; overflow:hidden; gap:3px; }
+      #current-date-display .date-display-big { font-size:1.6rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      #current-date-display .date-display-year { font-size:.85rem; font-weight:800; flex-shrink:0; }
       .date-display-big { font-size: 1.5rem; }
       .action-buttons-row { width: 100%; justify-content: space-between; }
     }

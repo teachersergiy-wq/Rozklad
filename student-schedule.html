@@ -168,6 +168,9 @@
       body { padding: 10px; }
       /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
       .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .nav-row { gap: 4px; margin-bottom: 12px; }
+      #prev-week-btn, #next-week-btn { flex: 0 0 34px; width: 34px; min-width: 34px; padding: 5px 6px; font-size: .82rem; }
+      #current-week-display { flex: 1 1 auto; min-width: 0; max-width: 100%; font-size: 1.45rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
       .date-display-big { font-size: 1.3rem; }
       .pending-requests-header { align-items: flex-start; flex-direction: column; }
       .pending-request-item { align-items: flex-start; flex-direction: column; }
