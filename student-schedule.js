@@ -50,6 +50,7 @@ function cache(){
   els.pendingRequestsPanel=$('pending-requests-panel');
   els.pendingRequestsList=$('pending-requests-list');
   els.pendingRequestCounter=$('pending-request-counter');
+  els.debtNotice=$('debt-notice');
   els.rescheduleBannerCancelBtn=$('reschedule-banner-cancel-btn');
   els.lessonDetailModal=$('lesson-detail-modal');
   els.lessonDetailTitle=$('lesson-detail-title');
@@ -174,12 +175,28 @@ async function loadCompletedHistory(force=false){
     renderCompletedHistory();
   }
 }
+function renderDebtNotice(){
+  const host=els.debtNotice;
+  if(!host)return;
+  const rows=Array.isArray(state.completedHistory)?state.completedHistory:[];
+  const unpaid=rows.filter(x=>x&&x.status==='completed'&&!x.paid);
+  if(unpaid.length){
+    host.textContent='💳 Заборгованість: '+unpaid.length+' проведених уроків не оплачено.';
+    host.classList.remove('hidden');
+    host.setAttribute('aria-hidden','false');
+  }else{
+    host.classList.add('hidden');
+    host.setAttribute('aria-hidden','true');
+  }
+}
+
 function renderCompletedHistory(){
   const host=$('completed-lessons-list');
   const count=$('completed-lessons-count');
   if(!host)return;
   const rows=(state.completedHistory||[]).slice().sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
   if(count)count.textContent='Усього проведено: '+rows.length;
+  renderDebtNotice();
 
   if(state.completedHistoryLoading&&rows.length===0){
     host.innerHTML='<div class="loading">Завантаження проведених уроків...</div>';
@@ -642,6 +659,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     els.pageTitle.textContent='📅 '+(state.archived?'Історія розкладу · ':'Вітаємо, ')+state.student.name+'!';
     els.pageSubtitle.textContent=state.archived?'Перегляд історії уроків доступний до дати архівації. Запис і перенесення призупинені.':'Тут показано ваші уроки та доступні години для запису.';
     render();
+    loadCompletedHistory(false).catch(e=>console.error('Initial completed history load failed:',e));
   }catch(e){
     console.error(e);
     els.pageTitle.textContent='❗ Посилання недійсне';
