@@ -176,13 +176,19 @@ async function loadV2(){
     db.from('v2_audit_log').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:false}).limit(MAX_AUDIT),
     db.from('v2_schedule_snapshots').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:false}).limit(14)
   ]);
-  r.forEach(x=>{if(x.error)throw x.error;});
-  state.students=r[0].data.map(x=>({id:String(x.id),name:x.name||'',grade:x.grade||'',phone:x.phone||'',parentName:x.parent_name||'',parentPhone:x.parent_phone||'',color:COLORS.includes(x.color)?x.color:COLORS[0],accessToken:x.access_token?String(x.access_token):'',archivedAt:x.archived_at||null,cooperationPlatform:COOPERATION_PLATFORMS.includes(x.cooperation_platform)?x.cooperation_platform:''}));
-  state.lessons=r[1].data.map(x=>({id:String(x.id),studentId:String(x.student_id),date:String(x.lesson_date),time:String(x.lesson_time||'00:00').slice(0,5),status:x.status||'planned',topic:x.topic||'',homework:x.homework||'',paid:!!x.paid,paidAmount:x.paid_amount==null?null:Number(x.paid_amount),paidDate:x.paid_date||null,paidMethod:x.paid_method||null}));
-  state.availableSlots=[];state.blockedSlots=[];r[2].data.forEach(x=>{const z={id:String(x.id),date:String(x.slot_date),time:String(x.slot_time).slice(0,5)};(x.is_open?state.availableSlots:state.blockedSlots).push(z);});
-  state.bookingRequests=r[3].data.map(x=>({id:String(x.id),studentId:String(x.student_id),type:x.request_type,lessonId:x.lesson_id?String(x.lesson_id):null,oldDate:x.old_date||null,oldTime:x.old_time?String(x.old_time).slice(0,5):null,date:String(x.new_date),time:String(x.new_time).slice(0,5),status:x.status,createdAt:x.created_at}));
-  state.auditLog=r[4].data.map(x=>({id:String(x.id),ts:new Date(x.created_at).getTime(),actor:x.actor_type||'system',action:x.action||'',meta:x.meta||null}));
-  state.backups=r[5].data||[];
+  r.forEach(x=>{if(x&&x.error)throw x.error;});
+  const studentRows=Array.isArray(r[0]?.data)?r[0].data:[];
+  const lessonRows=Array.isArray(r[1])?r[1]:(Array.isArray(r[1]?.data)?r[1].data:[]);
+  const slotRows=Array.isArray(r[2]?.data)?r[2].data:[];
+  const requestRows=Array.isArray(r[3]?.data)?r[3].data:[];
+  const auditRows=Array.isArray(r[4]?.data)?r[4].data:[];
+  const backupRows=Array.isArray(r[5]?.data)?r[5].data:[];
+  state.students=studentRows.map(x=>({id:String(x.id),name:x.name||'',grade:x.grade||'',phone:x.phone||'',parentName:x.parent_name||'',parentPhone:x.parent_phone||'',color:COLORS.includes(x.color)?x.color:COLORS[0],accessToken:x.access_token?String(x.access_token):'',archivedAt:x.archived_at||null,cooperationPlatform:COOPERATION_PLATFORMS.includes(x.cooperation_platform)?x.cooperation_platform:''}));
+  state.lessons=lessonRows.map(x=>({id:String(x.id),studentId:String(x.student_id),date:String(x.lesson_date),time:String(x.lesson_time||'00:00').slice(0,5),status:x.status||'planned',topic:x.topic||'',homework:x.homework||'',paid:!!x.paid,paidAmount:x.paid_amount==null?null:Number(x.paid_amount),paidDate:x.paid_date||null,paidMethod:x.paid_method||null}));
+  state.availableSlots=[];state.blockedSlots=[];slotRows.forEach(x=>{const z={id:String(x.id),date:String(x.slot_date),time:String(x.slot_time).slice(0,5)};(x.is_open?state.availableSlots:state.blockedSlots).push(z);});
+  state.bookingRequests=requestRows.map(x=>({id:String(x.id),studentId:String(x.student_id),type:x.request_type,lessonId:x.lesson_id?String(x.lesson_id):null,oldDate:x.old_date||null,oldTime:x.old_time?String(x.old_time).slice(0,5):null,date:String(x.new_date),time:String(x.new_time).slice(0,5),status:x.status,createdAt:x.created_at}));
+  state.auditLog=auditRows.map(x=>({id:String(x.id),ts:new Date(x.created_at).getTime(),actor:x.actor_type||'system',action:x.action||'',meta:x.meta||null}));
+  state.backups=backupRows;
   if(state.filterStudentId&&!state.students.some(x=>x.id===String(state.filterStudentId)&&!x.archivedAt))state.filterStudentId=state.students.find(x=>!x.archivedAt)?.id||null;
   syncStatus('saved');
 }
