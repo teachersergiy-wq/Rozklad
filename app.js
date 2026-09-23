@@ -152,6 +152,17 @@ async function authUser(){
   state.user=user;
   return state.user;
 }
+async function fetchAllRows(queryFactory,pageSize=1000){
+  const rows=[];
+  for(let from=0;;from+=pageSize){
+    const r=await queryFactory().range(from,from+pageSize-1);
+    if(r.error)throw r.error;
+    const batch=r.data||[];
+    rows.push(...batch);
+    if(batch.length<pageSize)break;
+  }
+  return rows;
+}
 async function loadV2(){
   await authUser();
   const s=await db.from('v2_schedules').select('*').eq('owner_id',state.user.id).order('created_at',{ascending:true}).limit(1).maybeSingle();
@@ -159,7 +170,7 @@ async function loadV2(){
   state.schedule=s.data;state.scheduleId=String(s.data.id);
   const r=await Promise.all([
     db.from('v2_students').select('*').eq('schedule_id',state.scheduleId).order('created_at'),
-    db.from('v2_lessons').select('*').eq('schedule_id',state.scheduleId).order('lesson_date').order('lesson_time'),
+    fetchAllRows(()=>db.from('v2_lessons').select('*').eq('schedule_id',state.scheduleId).order('lesson_date').order('lesson_time').order('id'),1000),
     db.from('v2_slot_overrides').select('*').eq('schedule_id',state.scheduleId).order('slot_date').order('slot_time'),
     db.from('v2_booking_requests').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:false}),
     db.from('v2_audit_log').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:false}).limit(MAX_AUDIT),
