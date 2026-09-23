@@ -21,7 +21,8 @@ const state = {
   currentDate: new Date(),
   rescheduleFrom: null,
   hourPicker: null,
-  archived: false
+  archived: false,
+  navigationBusy: false
 };
 
 const els = {};
@@ -503,14 +504,65 @@ function setupModals(){
   }));
 }
 
+async function navigatePeriod(delta){
+  if(state.navigationBusy)return;
+  state.navigationBusy=true;
+  state.hourPicker=null;
+  const buttons=[els.prevWeekBtn,els.nextWeekBtn,els.todayBtn].filter(Boolean);
+  buttons.forEach(b=>b.disabled=true);
+  try{
+    if(state.view==='week'){
+      const base=monday(state.currentDate);
+      base.setDate(base.getDate()+delta*7);
+      state.currentDate=base;
+    }else if(state.view==='month'){
+      state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+delta,1);
+    }else{
+      state.currentDate=new Date(state.currentDate.getFullYear()+delta,0,1);
+    }
+    await loadStudentSchedule();
+    render();
+  }finally{
+    state.navigationBusy=false;
+    buttons.forEach(b=>b.disabled=false);
+  }
+}
+async function goToCurrentPeriod(){
+  if(state.navigationBusy)return;
+  state.navigationBusy=true;
+  state.hourPicker=null;
+  const buttons=[els.prevWeekBtn,els.nextWeekBtn,els.todayBtn].filter(Boolean);
+  buttons.forEach(b=>b.disabled=true);
+  try{
+    state.currentDate=new Date();
+    await loadStudentSchedule();
+    render();
+  }finally{
+    state.navigationBusy=false;
+    buttons.forEach(b=>b.disabled=false);
+  }
+}
+async function switchView(view){
+  if(state.navigationBusy)return;
+  state.navigationBusy=true;
+  state.view=view;
+  state.hourPicker=null;
+  try{
+    await loadStudentSchedule();
+    render();
+  }finally{
+    state.navigationBusy=false;
+  }
+}
+
 function setupUI(){
   els.themeToggleBtn.onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
-  els.prevWeekBtn.onclick=async()=>{state.hourPicker=null;if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);else state.currentDate=new Date(state.currentDate.getFullYear()-1,0,1);await loadStudentSchedule();render();};
-  els.nextWeekBtn.onclick=async()=>{state.hourPicker=null;if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);else state.currentDate=new Date(state.currentDate.getFullYear()+1,0,1);await loadStudentSchedule();render();};
-  els.todayBtn.onclick=async()=>{state.hourPicker=null;state.currentDate=new Date();await loadStudentSchedule();render();};
-  $('view-week-btn').onclick=async()=>{state.view='week';state.hourPicker=null;await loadStudentSchedule();render();};
-  $('view-month-btn').onclick=async()=>{state.view='month';state.hourPicker=null;await loadStudentSchedule();render();};
-  $('view-year-btn').onclick=async()=>{state.view='year';state.hourPicker=null;await loadStudentSchedule();render();};
+  els.prevWeekBtn.onclick=()=>navigatePeriod(-1);
+  els.nextWeekBtn.onclick=()=>navigatePeriod(1);
+  els.todayBtn.onclick=goToCurrentPeriod;
+  $('view-week-btn').onclick=()=>switchView('week');
+  $('view-month-btn').onclick=()=>switchView('month');
+  $('view-year-btn').onclick=()=>switchView('year');
   $('completed-lessons-btn').onclick=async()=>{document.getElementById('completed-lessons-modal').classList.remove('hidden');await loadCompletedHistory();renderCompletedHistory();};
   $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
   els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
