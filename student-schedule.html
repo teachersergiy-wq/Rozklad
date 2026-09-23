@@ -45,6 +45,8 @@
     .info-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 999px; padding: 4px 10px; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); }
     .pending-request-counter { border-color: var(--pending-border); background: var(--pending-bg); color: var(--pending-text); }
     .pending-request-counter.limit { font-weight: 800; }
+    .debt-notice { max-width:720px; margin:0 auto 10px; padding:9px 12px; border-radius:10px; border:1px solid var(--pending-border); background:var(--pending-bg); color:var(--pending-text); font-size:.82rem; font-weight:800; text-align:center; }
+    .debt-notice.hidden { display:none; }
 
     .nav-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 14px; }
     button { cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); font-weight: 600; font-size: 0.88rem; color: var(--text); }
@@ -194,6 +196,8 @@
     Ваш доступ до запису й перенесення уроків призупинено. Зверніться до вчителя для відновлення можливості надсилати запити.
   </div>
 
+  <div id="debt-notice" class="debt-notice hidden" role="status" aria-live="polite" aria-hidden="true"></div>
+
   <div id="pending-requests-panel" class="pending-requests-panel hidden" role="region" aria-label="Мої запити на розгляді">
     <div class="pending-requests-header">
       <strong>Мої запити на розгляді</strong>
@@ -263,6 +267,6 @@
     </div>
   </div>
 
-  <script src="student-schedule.js?v=20260923-5"></script>
+  <script src="student-schedule.js?v=20260923-6"></script>
 </body>
 </html>
