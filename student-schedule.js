@@ -300,7 +300,11 @@ function renderCalendarYear(){
     for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-year-day empty';grid.appendChild(e);}
     for(let day=1;day<=total;day++){
       const date=iso(new Date(y,m,day)),lessons=state.ownLessons.filter(l=>l.date===date),completed=lessons.filter(l=>l.status==='completed').length,planned=lessons.filter(l=>l.status==='planned').length;
-      const cell=document.createElement('button');cell.type='button';cell.className='calendar-year-day';cell.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,day);await loadStudentSchedule();render();};
+      const cell=document.createElement('button');cell.type='button';cell.className='calendar-year-day';
+      if(lessons.length){
+        cell.style.background='color-mix(in srgb, var(--accent) 14%, var(--surface-alt))';
+        cell.style.borderColor='color-mix(in srgb, var(--accent) 45%, var(--border))';
+      }cell.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,day);await loadStudentSchedule();render();};
       const n=document.createElement('span');n.className='calendar-year-day-num';n.textContent=day;cell.appendChild(n);
       const counts=document.createElement('span');counts.className='calendar-year-counts';
       if(completed){const q=document.createElement('span');q.className='completed';q.textContent=completed;counts.appendChild(q);}
