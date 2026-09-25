@@ -617,6 +617,7 @@ async function switchView(view){
   if(state.navigationBusy)return;
   state.navigationBusy=true;
   state.view=view;
+  if(view==='week')state.currentDate=monday(state.currentDate);
   state.hourPicker=null;
   try{
     await loadStudentSchedule();
