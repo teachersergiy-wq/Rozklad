@@ -261,6 +261,16 @@ function renderCalendarMonth(){
   for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-month-cell empty';host.appendChild(e);}
   for(let day=1;day<=total;day++){
     const date=iso(new Date(y,m,day)),cell=document.createElement('div');cell.className='calendar-month-cell';
+    cell.classList.add('calendar-month-cell-clickable');
+    cell.title='Відкрити тиждень з цим днем';
+    cell.onclick=async(e)=>{
+      if(e.target.closest('.calendar-month-lesson'))return;
+      state.view='week';
+      state.currentDate=new Date(y,m,day);
+      state.hourPicker=null;
+      await loadStudentSchedule();
+      render();
+    };
     const num=document.createElement('div');num.className='calendar-month-day-num';num.textContent=day;cell.appendChild(num);
     const hours=monthAvailableHours(date);
     if(hours.length){
@@ -271,7 +281,7 @@ function renderCalendarMonth(){
       cell.appendChild(h);
     }
     state.ownLessons.filter(l=>l.date===date).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{
-      const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson';b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(l.status==='completed'?'Проведено':'Заплановано')+'</small>';b.onclick=()=>showLesson(l);cell.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson';b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(l.status==='completed'?'Проведено':'Заплановано')+'</small>';b.onclick=(e)=>{e.stopPropagation();showLesson(l);};cell.appendChild(b);
     });
     host.appendChild(cell);
   }
