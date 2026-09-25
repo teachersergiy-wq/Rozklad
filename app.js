@@ -320,6 +320,15 @@ function dayHeader(d){
   if(state.view!=='day'){
     const x=document.createElement('span');x.className='day-header-date';x.textContent=d.getDate()+' '+MONTHS[d.getMonth()];h.appendChild(x);
   }
+  if(state.view==='week'){
+    h.style.cursor='pointer';
+    h.title='Відкрити розклад дня';
+    h.onclick=()=>{
+      state.view='day';
+      state.currentDate=new Date(d);
+      render();
+    };
+  }
   return h;
 }
 function lessonCard(l){
@@ -351,7 +360,15 @@ function renderMonth(){
   const y=state.currentDate.getFullYear(),m=state.currentDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate();
   DAYS.forEach(n=>{const x=document.createElement('div');x.className='day-header';x.style.cssText='font-weight:700;font-size:.85rem;';x.textContent=n;el.calendarGrid.appendChild(x);});
   for(let i=start-1;i>=0;i--){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(prev-i)+'</div>';el.calendarGrid.appendChild(x);}
-  for(let day=1;day<=total;day++){const d=new Date(y,m,day),date=iso(d),c=document.createElement('div');c.className='month-cell '+(today(d)?'today':'');const n=document.createElement('div');n.className='month-day-num '+(today(d)?'today-num':'');n.textContent=day;c.appendChild(n);
+  for(let day=1;day<=total;day++){const d=new Date(y,m,day),date=iso(d),c=document.createElement('div');c.className='month-cell '+(today(d)?'today':'');
+    c.style.cursor='pointer';
+    c.title='Відкрити тижневий розклад';
+    c.onclick=()=>{
+      state.view='week';
+      state.currentDate=new Date(y,m,day);
+      render();
+    };
+    const n=document.createElement('div');n.className='month-day-num '+(today(d)?'today-num':'');n.textContent=day;c.appendChild(n);
     state.lessons.filter(l=>l.date===date&&match(l)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{const s=state.students.find(q=>q.id===l.studentId),b=document.createElement('div');b.className='month-lesson-badge';b.style.backgroundColor=s?s.color:COLORS[0];b.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-weight:600;">'+esc(l.time)+' '+esc(s?s.name:'')+'</span><span>'+(l.paid?'$':'')+(l.status==='completed'?' ✓':'')+'</span>';b.onclick=e=>{e.stopPropagation();openEditLesson(l.id);};c.appendChild(b);});
     el.calendarGrid.appendChild(c);
   }
@@ -362,6 +379,13 @@ function renderYear(){
   const y=state.currentDate.getFullYear();
   for(let m=0;m<12;m++){
     const card=document.createElement('section');card.className='year-month';
+    card.style.cursor='pointer';
+    card.title='Відкрити місячний розклад';
+    card.onclick=()=>{
+      state.view='month';
+      state.currentDate=new Date(y,m,1);
+      render();
+    };
     const title=document.createElement('h3');title.className='year-month-title';title.textContent=new Date(y,m,1).toLocaleDateString('uk-UA',{month:'long'});card.appendChild(title);
     const weekdays=document.createElement('div');weekdays.className='year-weekdays';DAYS.forEach(d=>{const x=document.createElement('div');x.textContent=d;weekdays.appendChild(x);});card.appendChild(weekdays);
     const grid=document.createElement('div');grid.className='year-days';
