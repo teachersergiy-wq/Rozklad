@@ -196,6 +196,12 @@ function renderCompletedHistory(){
   const count=$('completed-lessons-count');
   if(!host)return;
   const rows=(state.completedHistory||[]).slice().sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+  const chronological=rows.slice().sort((a,b)=>{
+    const byDateTime=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+    if(byDateTime!==0)return byDateTime;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  const absoluteNumberById=new Map(chronological.map((lesson,index)=>[String(lesson.id),index+1]));
   if(count)count.textContent='Усього проведено: '+rows.length;
   renderDebtNotice();
 
@@ -226,7 +232,7 @@ function renderCompletedHistory(){
 
   rows.forEach((l,index)=>{
     const item=document.createElement('div');item.className='completed-lesson-item';
-    const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=(index+1)+'. '+prettyDate(l.date)+' · '+l.time;
+    const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=(absoluteNumberById.get(String(l.id))||0)+'. '+prettyDate(l.date)+' · '+l.time;
     const topic=document.createElement('div');topic.className='completed-lesson-topic';topic.textContent=l.topic||'Тема не вказана';
     const meta=document.createElement('div');meta.className='completed-lesson-meta';
     const paid=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':''):'Не оплачено';
