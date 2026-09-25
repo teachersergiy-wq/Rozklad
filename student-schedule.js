@@ -267,6 +267,11 @@ function renderCalendarMonth(){
   for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-month-cell empty';host.appendChild(e);}
   for(let day=1;day<=total;day++){
     const date=iso(new Date(y,m,day)),cell=document.createElement('div');cell.className='calendar-month-cell';
+    const dayLessons=state.ownLessons.filter(l=>l.date===date);
+    if(dayLessons.length){
+      cell.style.background='color-mix(in srgb, var(--accent) 14%, var(--surface))';
+      cell.style.borderColor='color-mix(in srgb, var(--accent) 45%, var(--border))';
+    }
     cell.classList.add('calendar-month-cell-clickable');
     cell.title='Відкрити тиждень з цим днем';
     cell.onclick=async(e)=>{
