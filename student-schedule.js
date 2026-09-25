@@ -235,6 +235,24 @@ function renderCompletedHistory(){
     host.appendChild(item);
   });
 }
+function monthAvailableHours(date){
+  if(state.archived)return [];
+  const min=Number(state.settings.minHour||9),max=Number(state.settings.maxHour||21);
+  const hours=[];
+  for(let h=min;h<=max;h++)if(isOpen(date,h))hours.push(h);
+  return hours;
+}
+function formatHourRanges(hours){
+  if(!hours.length)return '';
+  const ranges=[];let start=hours[0],end=hours[0];
+  for(let i=1;i<hours.length;i++){
+    if(hours[i]===end+1){end=hours[i];}
+    else{ranges.push([start,end]);start=end=hours[i];}
+  }
+  ranges.push([start,end]);
+  return ranges.map(([a,b])=>a===b?time(a):time(a)+'–'+time(b)).join(', ');
+}
+
 function renderCalendarMonth(){
   const host=els.scheduleContainer;host.className='calendar-month';host.innerHTML='';
   const y=state.currentDate.getFullYear(),m=state.currentDate.getMonth();
@@ -244,6 +262,14 @@ function renderCalendarMonth(){
   for(let day=1;day<=total;day++){
     const date=iso(new Date(y,m,day)),cell=document.createElement('div');cell.className='calendar-month-cell';
     const num=document.createElement('div');num.className='calendar-month-day-num';num.textContent=day;cell.appendChild(num);
+    const hours=monthAvailableHours(date);
+    if(hours.length){
+      const h=document.createElement('div');
+      h.className='calendar-month-hours';
+      h.textContent='Вільно: '+formatHourRanges(hours);
+      h.title='Доступні години: '+formatHourRanges(hours);
+      cell.appendChild(h);
+    }
     state.ownLessons.filter(l=>l.date===date).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{
       const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson';b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(l.status==='completed'?'Проведено':'Заплановано')+'</small>';b.onclick=()=>showLesson(l);cell.appendChild(b);
     });
