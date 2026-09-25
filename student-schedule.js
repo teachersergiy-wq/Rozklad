@@ -24,7 +24,8 @@ const state = {
   rescheduleFrom: null,
   hourPicker: null,
   archived: false,
-  navigationBusy: false
+  navigationBusy: false,
+  view: 'week'
 };
 
 const els = {};
