@@ -77,6 +77,8 @@ function confirmBox(message,confirmText='Надіслати заявку'){
 function applyTheme(v){document.documentElement.setAttribute('data-theme',v);els.themeToggleBtn.textContent=v==='dark'?'☀️':'🌙';localStorage.setItem(THEME_KEY,v);}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function prettyDate(s){const p=String(s).split('-').map(Number);if(!p[0])return s||'';return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'});}
+function weekdayShort(s){const p=String(s).split('-').map(Number);if(!p[0])return '';return ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(p[0],p[1]-1,p[2]).getDay()];}
+function lessonListDateTime(s,t){return prettyDate(s).replace(/\sр\.$/,'р.')+' ('+weekdayShort(s)+') - '+t;}
 function monday(d){const x=new Date(d),day=x.getDay();x.setDate(x.getDate()-day+(day===0?-6:1));x.setHours(0,0,0,0);return x;}
 function time(h){return String(h).padStart(2,'0')+':00';}
 function pastSlot(date,h){const p=date.split('-').map(Number);return new Date(p[0],p[1]-1,p[2],h,0,0).getTime()<Date.now();}
@@ -231,8 +233,8 @@ function renderCompletedHistory(){
   }
 
   rows.forEach((l,index)=>{
-    const item=document.createElement('div');item.className='completed-lesson-item';
-    const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=(absoluteNumberById.get(String(l.id))||0)+'. '+prettyDate(l.date)+' · '+l.time;
+    const item=document.createElement('div');item.className='completed-lesson-item';item.style.cursor='pointer';item.title='Відкрити деталі уроку';item.onclick=()=>showLesson(l);
+    const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=(absoluteNumberById.get(String(l.id))||0)+'. '+lessonListDateTime(l.date,l.time);
     const topic=document.createElement('div');topic.className='completed-lesson-topic';topic.textContent=l.topic||'Тема не вказана';
     const meta=document.createElement('div');meta.className='completed-lesson-meta';
     const paid=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':''):'Не оплачено';
