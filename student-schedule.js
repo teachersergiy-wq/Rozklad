@@ -243,6 +243,63 @@ function renderCompletedHistory(){
     host.appendChild(item);
   });
 }
+function renderPlannedHistory(){
+  const host=$('planned-lessons-list');
+  const count=$('planned-lessons-count');
+  if(!host)return;
+  const rows=(state.ownLessons||[]).filter(x=>x&&x.status==='planned').slice().sort((a,b)=>{
+    const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+    return dt!==0?dt:String(a.id).localeCompare(String(b.id));
+  });
+  const absoluteNumberById=new Map(rows.map((lesson,index)=>[String(lesson.id),index+1]));
+  if(count)count.textContent='Усього заплановано: '+rows.length;
+  host.innerHTML='';
+  if(!rows.length){
+    const empty=document.createElement('div');
+    empty.className='loading';
+    empty.textContent='Запланованих уроків не знайдено.';
+    host.appendChild(empty);
+    return;
+  }
+  rows.forEach(l=>{
+    const item=document.createElement('div');
+    item.className='completed-lesson-item';
+    item.style.cursor='pointer';
+    item.title='Відкрити деталі уроку';
+    item.onclick=()=>showLesson(l);
+    const date=document.createElement('div');
+    date.className='completed-lesson-date';
+    date.textContent=(absoluteNumberById.get(String(l.id))||0)+'. '+lessonListDateTime(l.date,l.time);
+    const topic=document.createElement('div');
+    topic.className='completed-lesson-topic';
+    topic.textContent=l.topic||'Тема не вказана';
+    item.append(date,topic);
+    host.appendChild(item);
+  });
+}
+
+function ensurePlannedLessonsSection(){
+  if($('planned-lessons-btn'))return;
+  const completedBtn=$('completed-lessons-btn');
+  if(!completedBtn)return;
+  const button=document.createElement('button');
+  button.id='planned-lessons-btn';
+  button.className='completed-history-btn';
+  button.type='button';
+  button.textContent='📅 Заплановані уроки';
+  completedBtn.insertAdjacentElement('afterend',button);
+
+  const modal=document.createElement('div');
+  modal.id='planned-lessons-modal';
+  modal.className='modal hidden';
+  modal.dataset.cancelBtn='planned-lessons-close-btn';
+  modal.innerHTML='<div class="modal-content" style="max-width:640px;"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><h2 style="margin:0;color:var(--text-strong);">Заплановані уроки</h2><button id="planned-lessons-close-btn" type="button">Закрити</button></div><div id="planned-lessons-count" style="margin:8px 0 10px;color:var(--text-muted);font-size:.8rem;font-weight:700;"></div><div id="planned-lessons-list" class="completed-lessons-list"><div class="loading">Завантаження...</div></div></div>';
+  document.body.appendChild(modal);
+
+  button.onclick=()=>{modal.classList.remove('hidden');renderPlannedHistory();};
+  modal.querySelector('#planned-lessons-close-btn').onclick=()=>modal.classList.add('hidden');
+}
+
 function monthAvailableHours(date){
   if(state.archived)return [];
   const min=Number(state.settings.minHour||9),max=Number(state.settings.maxHour||21);
@@ -681,6 +738,7 @@ async function switchView(view){
 }
 
 function setupUI(){
+  ensurePlannedLessonsSection();
   els.themeToggleBtn.onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
   els.prevWeekBtn.onclick=()=>navigatePeriod(-1);
   els.nextWeekBtn.onclick=()=>navigatePeriod(1);
