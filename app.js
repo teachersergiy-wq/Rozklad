@@ -12,7 +12,7 @@ const AUTO_COMPLETE_MS=48*60*60*1000, MAX_AUDIT=300, THEME_KEY='schedule_theme_p
 
 const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
-  bookingRequests:[],auditLog:[],backups:[],currentDate:new Date(),view:'day',filterType:'all',
+  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
   selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,bulkSelectedLessonIds:new Set(),highlightedRequestSlot:null
 };
@@ -204,6 +204,87 @@ async function autoComplete(){
   for(const l of old){const r=await db.from('v2_lessons').update({status:'completed'}).eq('id',l.id).eq('schedule_id',state.scheduleId);if(r.error)console.warn(r.error);}
   if(old.length)await loadV2();
 }
+function ensureTeacherNotificationsPanel(){
+  if($('teacher-notifications-panel'))return;
+  const panel=document.createElement('section');
+  panel.id='teacher-notifications-panel';
+  panel.setAttribute('aria-live','polite');
+  panel.style.cssText='display:none;max-width:1100px;margin:0 auto 12px;padding:12px 14px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);border-radius:10px;';
+  const header=document.createElement('div');
+  header.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;';
+  const title=document.createElement('strong');
+  title.textContent='🔔 Нові повідомлення';
+  const count=document.createElement('span');
+  count.id='teacher-notifications-count';
+  count.style.cssText='font-size:.78rem;font-weight:800;';
+  header.append(title,count);
+  const list=document.createElement('div');
+  list.id='teacher-notifications-list';
+  panel.append(header,list);
+  const host=document.querySelector('.header');
+  if(host&&host.parentNode)host.parentNode.insertBefore(panel,host.nextSibling);
+  else document.body.insertBefore(panel,document.body.firstChild);
+}
+
+function renderTeacherNotifications(){
+  const panel=$('teacher-notifications-panel'),list=$('teacher-notifications-list'),count=$('teacher-notifications-count');
+  if(!panel||!list)return;
+  const rows=Array.isArray(state.teacherNotifications)?state.teacherNotifications:[];
+  panel.style.display=rows.length?'block':'none';
+  if(count)count.textContent=rows.length+' невідкритих';
+  list.innerHTML='';
+  rows.forEach(n=>{
+    const payload=n.payload&&typeof n.payload==='object'?n.payload:{};
+    const item=document.createElement('div');
+    item.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 0;border-top:1px dashed var(--border);';
+    const info=document.createElement('div');
+    info.style.cssText='min-width:0;line-height:1.35;';
+    const title=document.createElement('div');
+    title.style.cssText='font-size:.84rem;font-weight:800;';
+    title.textContent=(n.type==='lesson_cancelled_by_student'?'Учень скасував урок':'Нове повідомлення');
+    const meta=document.createElement('div');
+    meta.style.cssText='font-size:.75rem;margin-top:2px;';
+    const studentName=payload.studentName||'Учень';
+    const date=payload.lessonDate||'';
+    const time=String(payload.lessonTime||'').slice(0,5);
+    meta.textContent=studentName+(date?' · '+prettyDate(date):'')+(time?' · '+time:'');
+    info.append(title,meta);
+    const ack=document.createElement('button');
+    ack.type='button';
+    ack.textContent='Ознайомився';
+    ack.style.cssText='flex:0 0 auto;padding:7px 10px;';
+    ack.onclick=async()=>{
+      ack.disabled=true;
+      try{
+        const r=await db.rpc('v2_acknowledge_notification',{p_notification_id:String(n.id)});
+        if(r.error)throw r.error;
+        state.teacherNotifications=state.teacherNotifications.filter(x=>String(x.id)!==String(n.id));
+        renderTeacherNotifications();
+        toast('Повідомлення підтверджено.','success');
+      }catch(e){
+        console.error('Notification acknowledge failed:',e);
+        ack.disabled=false;
+        toast(e?.message||'Не вдалося підтвердити повідомлення.','error',5000);
+      }
+    };
+    item.append(info,ack);
+    list.appendChild(item);
+  });
+}
+
+async function loadTeacherNotifications(){
+  ensureTeacherNotificationsPanel();
+  const r=await db.rpc('v2_get_teacher_notifications');
+  if(r.error)throw r.error;
+  const raw=Array.isArray(r.data)?r.data:[];
+  state.teacherNotifications=raw.map(x=>({
+    id:String(x.id),type:x.type||'notification',
+    payload:x.payload&&typeof x.payload==='object'?x.payload:{},
+    createdAt:x.created_at||null
+  }));
+  renderTeacherNotifications();
+}
+
 function badges(){const n=state.bookingRequests.filter(x=>x.status==='pending').length;[el.settingsBadgeCount,el.requestsBadgeCount].forEach(x=>{if(!x)return;x.style.display=n?'flex':'none';if(n)x.textContent=String(n);});}
 function dateDisplay(){
   el.currentDateDisplay.innerHTML='';
@@ -794,6 +875,7 @@ async function bulkDeleteSelected(){
   }catch(e){syncStatus('offline');toast(bulkFriendlyError(e),'error',6000);}
 }
 function setupUI(){
+  ensureTeacherNotificationsPanel();
   safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
   safeBind('settingsBtn','onclick',()=>el.settingsModal.classList.remove('hidden'));
   safeBind('closeSettingsModalBtn','onclick',()=>el.settingsModal.classList.add('hidden'));
@@ -887,6 +969,12 @@ async function start(gate,knownUser=null){
     setupModals();
     setupContext();
     await loadV2();
+    try{
+      await loadTeacherNotifications();
+      if(!window.__teacherNotificationPoll){
+        window.__teacherNotificationPoll=setInterval(()=>loadTeacherNotifications().catch(e=>console.error('Notification refresh failed:',e)),30000);
+      }
+    }catch(e){console.error('Initial teacher notification load failed:',e);}
     renderSwatches();
     render();
     await autoComplete();
