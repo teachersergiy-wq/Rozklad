@@ -582,7 +582,7 @@ async function cancelOwnLessonFromModal(){
   try{
     const r=await db.rpc('v2_student_cancel_lesson',{p_token:state.token,p_lesson_id:l.id});
     if(r.error)throw r.error;
-    els.lessonDetailModal.classList.add('hidden');
+    closeLessonDetailModal();
     await loadStudentSchedule();
     render();
     toast('Урок скасовано. Викладач отримав повідомлення.','success',5000);
@@ -709,6 +709,19 @@ function renderOwnLesson(col,l){
   x.onclick=()=>showLesson(l);col.appendChild(x);
 }
 
+function closeLessonDetailModal(){
+  if(!els.lessonDetailModal)return;
+  els.lessonDetailModal.classList.add('hidden');
+  els.lessonDetailModal.scrollTop=0;
+  els.lessonDetailModal.scrollLeft=0;
+  const content=els.lessonDetailModal.querySelector('.modal-content');
+  if(content){
+    content.scrollTop=0;
+    content.scrollLeft=0;
+  }
+  document.body.classList.remove('lesson-detail-open');
+}
+
 function showLesson(l){
   ensureSelfCancelButton();
   const pending=state.archived?null:pendingReschedule(l.id);
@@ -727,8 +740,23 @@ function showLesson(l){
   if(state.selfCancelCount!=null&&state.selfCancelCount>=state.selfCancelLimit&&l.status==='planned'&&!pending){
     const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⛔ Ліміт самостійних скасувань:</b> '+state.selfCancelCount+' із '+state.selfCancelLimit+' за цей календарний місяць.';els.lessonDetailBody.appendChild(q);
   }
-  els.lessonDetailRescheduleBtn.onclick=()=>{els.lessonDetailModal.classList.add('hidden');state.rescheduleFrom={lessonId:l.id,date:l.date,time:l.time};els.rescheduleBannerText.textContent='Оберіть новий вільний час для перенесення уроку з '+prettyDate(l.date)+', '+l.time;els.rescheduleBanner.classList.remove('hidden');renderWeek();};
+  els.lessonDetailRescheduleBtn.onclick=()=>{closeLessonDetailModal();state.rescheduleFrom={lessonId:l.id,date:l.date,time:l.time};els.rescheduleBannerText.textContent='Оберіть новий вільний час для перенесення уроку з '+prettyDate(l.date)+', '+l.time;els.rescheduleBanner.classList.remove('hidden');renderWeek();};
+  els.lessonDetailModal.scrollTop=0;
+  els.lessonDetailModal.scrollLeft=0;
+  const modalContent=els.lessonDetailModal.querySelector('.modal-content');
+  if(modalContent){
+    modalContent.scrollTop=0;
+    modalContent.scrollLeft=0;
+  }
+  document.body.classList.add('lesson-detail-open');
   els.lessonDetailModal.classList.remove('hidden');
+  requestAnimationFrame(()=>{
+    els.lessonDetailModal.scrollTop=0;
+    if(modalContent){
+      modalContent.scrollTop=0;
+      modalContent.scrollLeft=0;
+    }
+  });
 }
 
 async function requestBooking(date,h){
@@ -790,7 +818,10 @@ function setupModals(){
     const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn,b=id?$(id):null;if(b)b.click();
   });
   document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{
-    if(e.target!==m||innerWidth>640)return;const id=m.dataset.cancelBtn,b=id?$(id):null;if(b)b.click();
+    if(e.target!==m)return;
+    if(m===els.lessonDetailModal){closeLessonDetailModal();return;}
+    if(innerWidth>640)return;
+    const id=m.dataset.cancelBtn,b=id?$(id):null;if(b)b.click();
   }));
 }
 
@@ -861,7 +892,7 @@ function setupUI(){
     await loadCompletedHistory(true);
   };
   $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
-  els.lessonDetailCloseBtn.onclick=()=>els.lessonDetailModal.classList.add('hidden');
+  els.lessonDetailCloseBtn.onclick=closeLessonDetailModal;
   els.rescheduleBannerCancelBtn.onclick=()=>{state.rescheduleFrom=null;els.rescheduleBanner.classList.add('hidden');renderWeek();};
   window.addEventListener('resize',()=>render());
   setupModals();
