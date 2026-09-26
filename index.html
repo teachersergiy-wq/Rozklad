@@ -25,6 +25,9 @@
       --slot-range-bg: #f0fdf4;
       --slot-range-border: #86efac;
       --slot-range-text: #15803d;
+      --slot-request-bg: #fff7ed;
+      --slot-request-border: #f97316;
+      --slot-request-text: #9a3412;
       --slot-unavail-bg: #fef2f2;
       --slot-unavail-border: #fca5a5;
       --slot-unavail-text: #b91c1c;
@@ -49,6 +52,9 @@
       --slot-range-bg: #0f2b1c;
       --slot-range-border: #15803d;
       --slot-range-text: #4ade80;
+      --slot-request-bg: #3a2417;
+      --slot-request-border: #fb923c;
+      --slot-request-text: #fed7aa;
       --slot-unavail-bg: #3b1d1d;
       --slot-unavail-border: #7f1d1d;
       --slot-unavail-text: #fca5a5;
@@ -59,15 +65,23 @@
     * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body { background: var(--bg); margin: 0; padding: 16px; color: var(--text); transition: background 0.2s, color 0.2s; }
 
-    .header { position: sticky; top: 0; z-index: 500; background: var(--bg); display: flex; flex-direction: column; align-items: stretch; margin-bottom: 16px; gap: 8px; padding: 8px 0; }
-    .controls { display: flex; flex-direction: column; gap: 8px; align-items: stretch; width: 100%; }
-    .controls > .date-group, .controls > .view-group, .controls > .filter-group, .controls > .action-buttons-row { width: 100%; justify-content: center; }
-
-    .date-group, .view-group, .filter-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-    .filter-group { width: 100%; justify-content: flex-start; }
-    .filter-group label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
-    .filter-group select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 0.85rem; font-weight: 600; }
-
+    .header { position: sticky; top: 0; z-index: 500; background: var(--bg); display: flex; flex-direction: column; align-items: stretch; margin-bottom: 10px; gap: 6px; padding: 4px 0 6px; }
+.header-main-row { display:flex; align-items:center; justify-content:space-between; gap:12px; min-width:0; }
+.header-main-row h1 { margin:0; font-weight:700; color:var(--text-strong); font-size:1.3rem; white-space:nowrap; }
+.header .controls { display:contents; }
+.header .date-group { display:flex; align-items:center; justify-content:flex-end; gap:5px; flex-wrap:nowrap; }
+.header .view-group { display:flex; align-items:center; justify-content:center; gap:5px; width:100%; }
+.header .view-group button { flex:0 0 auto; padding:6px 12px; }
+.tools-row { display:flex; align-items:center; justify-content:flex-end; gap:6px; width:100%; overflow-x:auto; flex-wrap:nowrap; padding:1px 2px 3px; scrollbar-width:thin; }
+.tools-row > * { flex:0 0 auto; }
+.tools-row .icon-btn { width:40px; height:38px; padding:6px 9px; display:inline-flex; align-items:center; justify-content:center; }
+.tools-row #sync-status { min-width:auto; margin-left:2px; }
+.filter-panel { display:flex; align-items:center; gap:8px; flex-wrap:wrap; align-self:flex-end; width:min(760px,100%); padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:var(--surface); box-shadow:0 8px 20px var(--shadow); }
+.filter-panel.hidden { display:none; }
+.filter-panel label { font-size:.82rem; font-weight:700; color:var(--text-muted); white-space:nowrap; }
+.filter-panel select { padding:7px 10px; border-radius:8px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:.84rem; font-weight:600; min-width:180px; }
+.filter-panel #filter-student-select { min-width:170px; }
+    
     button { cursor: pointer; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); font-weight: 600; font-size: 0.88rem; transition: background 0.15s; color: var(--text); }
     button:hover { background: var(--surface-alt); }
     button.primary { background: var(--accent); color: white; border: none; font-weight: 600; }
@@ -87,6 +101,11 @@
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
     .calendar-container { width: 100%; }
+    .slot-legend { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px; font-size: 0.76rem; color: var(--text-muted); }
+    .slot-legend.hidden { display: none; }
+    .slot-legend-title { font-weight: 800; color: var(--text); }
+    .slot-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+    .slot-legend-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 20px; border: 1px solid var(--slot-request-border); border-radius: 999px; background: var(--slot-request-bg); }
 
     #current-date-display { display: inline-flex; align-items: baseline; gap: 6px; justify-content: center; text-align: center; }
     .date-display-big { font-size: 2rem; font-weight: 800; color: var(--text-strong); line-height: 1.1; }
@@ -96,6 +115,21 @@
     .grid-month { grid-template-columns: repeat(7, 1fr); }
     /* Заголовки днів тижня в режимі "Місяць" закріплені під шапкою при прокрутці */
     .grid-month .day-header { position: sticky; top: var(--month-sticky-top, 0px); z-index: 400; box-shadow: 0 2px 4px var(--shadow); }
+.year-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:10px; width:100%; }
+.year-month { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px; min-width:0; }
+.year-month-title { margin:0 0 7px; text-align:center; font-size:1rem; text-transform:capitalize; color:var(--text-strong); }
+.year-weekdays, .year-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; }
+.year-weekdays { margin-bottom:3px; }
+.year-weekdays div { text-align:center; color:var(--text-muted); font-size:.64rem; font-weight:700; }
+.year-day { min-height:42px; border:1px solid var(--border); border-radius:5px; padding:3px 2px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; background:var(--surface-alt); }
+.year-day.today { border:2px solid var(--accent); background:#eff6ff; }
+[data-theme="dark"] .year-day.today { background:#1e3a8a; }
+.year-day.empty { border-color:transparent; background:transparent; }
+.year-day-num { font-size:.78rem; font-weight:800; color:var(--text); line-height:1.05; }
+.year-counts { min-height:15px; display:flex; align-items:center; justify-content:center; gap:3px; margin-top:3px; }
+.year-count { font-size:.68rem; font-weight:900; line-height:1; min-width:11px; text-align:center; }
+.year-count.completed { color:#2563eb; }
+.year-count.planned { color:#ca8a04; }
 
     .week-columns { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; touch-action: pan-y; }
     .day-column { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
@@ -113,6 +147,20 @@
     .slot-free.clickable:hover { filter: brightness(0.96); }
     .slot-free.drag-over { background: #e0e7ff; border-color: #6366f1; }
     .slot-free.slot-range { background: var(--slot-range-bg); border-color: var(--slot-range-border); color: var(--slot-range-text); }
+    .slot-free.has-pending-request { background: var(--slot-request-bg); border: 2px solid var(--slot-request-border); color: var(--slot-request-text); flex-direction: column; gap: 3px; font-weight: 800; }
+    .pending-request-marker { display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--slot-request-border); background: var(--surface); color: var(--slot-request-text); font-size: 0.68rem; font-weight: 900; line-height: 1.2; white-space: nowrap; }
+    .slot-request-modal .modal-content { max-width: 520px; width: min(520px, 100%); }
+    .slot-request-item { border: 1px solid var(--border); background: var(--surface-alt); border-radius: 10px; padding: 10px; margin-bottom: 9px; }
+    .slot-request-item:last-child { margin-bottom: 0; }
+    .slot-request-name { font-size: 0.92rem; font-weight: 900; color: var(--text-strong); }
+    .slot-request-type { display: inline-block; margin-top: 3px; padding: 2px 7px; border-radius: 999px; background: var(--slot-request-bg); border: 1px solid var(--slot-request-border); color: var(--slot-request-text); font-size: 0.68rem; font-weight: 900; }
+    .slot-request-target, .slot-request-sent { margin-top: 5px; font-size: 0.78rem; line-height: 1.35; color: var(--text); }
+    .slot-request-sent { color: var(--text-muted); }
+    .slot-request-actions { display: flex; gap: 7px; margin-top: 9px; }
+    .slot-request-actions button { flex: 1; }
+    .slot-request-item .small-btn { font-size: 0.74rem; padding: 6px 9px; }
+    .request-slot-highlight { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 5px rgba(37,99,235,0.16); }
+    [data-theme="dark"] .request-slot-highlight { box-shadow: 0 0 0 5px rgba(96,165,250,0.22); }
 
     .slot-unavailable { border: 1px dashed var(--slot-unavail-border); border-radius: 6px; color: var(--slot-unavail-text); font-size: 0.75rem; min-height: 40px; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--slot-unavail-bg); font-weight: 600; text-align: center; padding: 4px; }
 
@@ -149,6 +197,7 @@
     .swatch-dot.active { border-color: var(--accent); transform: scale(1.2); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3); }
 
     .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--overlay); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(2px); padding: 12px; }
+    #confirm-modal { z-index: 4000; }
     .modal.hidden { display: none; }
     .modal-content { background: var(--surface); padding: 20px; border-radius: 12px; max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px var(--shadow); color: var(--text); }
     .modal-content.wide { max-width: 640px; }
@@ -158,6 +207,8 @@
     .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.88rem; color: var(--text); }
     .form-group input, .form-group select { width: 100%; padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 0.9rem; outline: none; background: var(--surface); color: var(--text); }
     .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+.input-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px rgba(239,68,68,.14); }
+.required-hint { display:none; color:var(--danger); font-size:.78rem; font-weight:700; margin-top:5px; }
     .flex-row { display: flex; gap: 10px; align-items: center; }
 
     .student-item { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--surface-alt); }
@@ -190,6 +241,11 @@
     .stat-card { flex: 1; min-width: 120px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
     .stat-card b { display: block; font-size: 1.2rem; color: var(--text-strong); }
     .stat-card span { font-size: 0.75rem; color: var(--text-muted); }
+    .student-debt-notice { width:100%; padding:9px 11px; border-radius:8px; margin:10px 0; font-size:.84rem; font-weight:700; line-height:1.35; }
+    .student-debt-notice.unpaid { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
+    .student-debt-notice.clear { background:#f0fdf4; border:1px solid #86efac; color:#166534; }
+    [data-theme="dark"] .student-debt-notice.unpaid { background:#3a2417; border-color:#fb923c; color:#fed7aa; }
+    [data-theme="dark"] .student-debt-notice.clear { background:#12351f; border-color:#22c55e; color:#bbf7d0; }
 
     .issue-item { background: #fef3c7; color: #92400e; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 0.82rem; font-weight: 500; }
     .issue-item.ok { background: #dcfce7; color: #15803d; }
@@ -209,6 +265,22 @@
     .audit-item .audit-meta { color: var(--text-muted); font-size: 0.74rem; }
 
     .backup-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--surface-alt); flex-wrap: wrap; }
+    .bulk-tabs { display:flex; gap:6px; margin-bottom:12px; }
+    .bulk-tabs button { flex:1; }
+    .bulk-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .bulk-form-grid .form-group { margin-bottom:8px; }
+    .bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .bulk-actions button { flex:1; min-width:150px; }
+    .bulk-selection-bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+    .bulk-lessons-list { max-height:360px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:6px; background:var(--surface-alt); }
+    .bulk-lesson-row { display:flex; gap:8px; align-items:center; padding:7px 8px; border-bottom:1px dashed var(--border); font-size:.78rem; }
+    .bulk-lesson-row:last-child { border-bottom:0; }
+    .bulk-lesson-row input { width:18px; height:18px; flex:0 0 auto; }
+    .bulk-lesson-main { min-width:0; flex:1; }
+    .bulk-lesson-main strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bulk-lesson-meta { color:var(--text-muted); font-size:.72rem; }
+    .bulk-help { color:var(--text-muted); font-size:.76rem; margin:0 0 8px; line-height:1.3; }
+    .bulk-danger-zone { margin-top:12px; padding:10px; border:1px solid #fecaca; border-radius:8px; background:#fef2f2; }
 
     /* Контекстне меню уроку/слоту */
     .context-menu { position: fixed; z-index: 3000; min-width: 210px; padding: 5px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 12px 30px var(--shadow); }
@@ -227,8 +299,31 @@
     .toast.info { background: #1d4ed8; }
 
     /* Адаптація під мобільні */
+    /* Landscape на мобільних: місячна сітка використовує всю ширину viewport */
+    @media (min-width: 641px) and (max-width: 1000px) and (orientation: landscape) {
+      body { padding: 8px; }
+      .calendar-month { width: 100%; max-width: none; gap: 4px; }
+      .month-cell { min-height: 72px; padding: 4px; font-size: 0.7rem; gap: 3px; }
+      .month-day-num { font-size: 0.86rem; }
+      .month-lesson-badge { padding: 2px 4px; font-size: 0.62rem; gap: 2px; }
+      .month-lesson-name { font-size: 0.62rem; }
+    }
+
     @media (max-width: 640px) {
       body { padding: 10px; }
+      .slot-request-actions { flex-direction: column; }
+      .slot-request-actions button { width: 100%; }
+      .header-main-row { gap:6px; }
+      .header-main-row h1 { font-size:1.05rem; }
+      .header .date-group { justify-content:space-between; gap:2px; min-width:0; }
+      .header .date-group button { padding:5px 6px; font-size:.76rem; min-width:0; }
+      .header .view-group { justify-content:space-between; }
+      .header .view-group button { flex:1 1 0; padding:6px 5px; font-size:.78rem; }
+      .tools-row { justify-content:flex-start; }
+      .filter-panel { align-self:stretch; }
+      .filter-panel select { flex:1 1 140px; min-width:0; }
+      .year-grid { grid-template-columns:1fr; }
+      .year-month { padding:8px; }
       /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
       .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .header h1 { font-size: 1.2rem; text-align: center; width: 100%; margin-bottom: 4px; }
@@ -237,7 +332,9 @@
       .view-group { width: 100%; justify-content: space-between; }
       .view-group button { flex: 1; text-align: center; }
       .filter-group select { flex: 1; min-width: 0; }
-      #current-date-display { flex: 1; font-size: 0.9rem; }
+      #current-date-display { flex:1 1 auto; min-width:0; max-width:100%; overflow:hidden; gap:3px; }
+      #current-date-display .date-display-big { font-size:1.6rem; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      #current-date-display .date-display-year { font-size:.85rem; font-weight:800; flex-shrink:0; }
       .date-display-big { font-size: 1.5rem; }
       .action-buttons-row { width: 100%; justify-content: space-between; }
     }
@@ -248,44 +345,46 @@
   <div id="toast-container"></div>
 
   <div class="header">
-    <h1 style="margin:0; font-weight: 700; color: var(--text-strong);">Розклад занять</h1>
-    <div class="controls">
+    <div class="header-main-row">
+      <h1>Розклад</h1>
       <div class="date-group">
         <button id="today-btn">Сьогодні</button>
-        <button id="prev-date-btn">&lt;</button>
+        <button id="prev-date-btn" aria-label="Попередній період">&lt;</button>
         <span id="current-date-display"></span>
-        <button id="next-date-btn">&gt;</button>
+        <button id="next-date-btn" aria-label="Наступний період">&gt;</button>
       </div>
+    </div>
 
-      <div class="view-group">
-        <button id="view-day-btn">День</button>
-        <button id="view-week-btn">Тиждень</button>
-        <button id="view-month-btn">Місяць</button>
-      </div>
+    <div class="view-group">
+      <button id="view-day-btn">День</button>
+      <button id="view-week-btn">Тиждень</button>
+      <button id="view-month-btn">Місяць</button>
+      <button id="view-year-btn">Рік</button>
+    </div>
 
-      <div class="filter-group">
-        <label for="filter-type-select">Показати:</label>
-        <select id="filter-type-select">
-          <option value="all">Усе (за замовчуванням)</option>
-          <option value="student">Розклад учня…</option>
-          <option value="planned">Усі заплановані уроки</option>
-          <option value="planned-overdue">Заплановані, дата яких вже пройшла</option>
-          <option value="completed">Усі проведені уроки</option>
-          <option value="completed-unpaid">Проведені неоплачені уроки</option>
-          <option value="paid">Оплачені уроки</option>
-          <option value="free">Усі вільні (доступні) години</option>
-        </select>
-        <select id="filter-student-select" style="display:none;"></select>
-      </div>
+    <div class="tools-row">
+      <button id="filter-toggle-btn" class="icon-btn" title="Фільтр" aria-label="Фільтр">🔽</button>
+      <button id="theme-toggle-btn" class="icon-btn" title="Перемкнути тему" aria-label="Тема">🌙</button>
+      <button id="students-info-btn" class="icon-btn" title="Учні" aria-label="Учні">🧑‍🎓</button>
+      <button id="settings-btn" class="primary icon-btn" title="Налаштування" aria-label="Налаштування">
+        ⚙️<span id="settings-badge-count" class="badge-count" style="display:none;">0</span>
+      </button>
+      <span id="sync-status"><span class="dot"></span><span id="sync-status-text">Готово</span></span>
+    </div>
 
-      <div class="action-buttons-row flex-row">
-        <span id="sync-status"><span class="dot"></span><span id="sync-status-text">Готово</span></span>
-        <button id="theme-toggle-btn" class="icon-btn" title="Перемкнути тему">🌙</button>
-        <button id="students-info-btn">🧑‍🎓 Учні</button>
-        <button id="settings-btn" class="primary icon-btn" title="Налаштування" aria-label="Налаштування">
-          ⚙️<span id="settings-badge-count" class="badge-count" style="display:none;">0</span>
-        </button>
-      </div>
+    <div id="filter-panel" class="filter-panel hidden">
+      <label for="filter-type-select">Показати:</label>
+      <select id="filter-type-select">
+        <option value="all">Усе (за замовчуванням)</option>
+        <option value="student">Розклад учня…</option>
+        <option value="planned">Усі заплановані уроки</option>
+        <option value="planned-overdue">Заплановані, дата яких вже пройшла</option>
+        <option value="completed">Усі проведені уроки</option>
+        <option value="completed-unpaid">Проведені неоплачені уроки</option>
+        <option value="paid">Оплачені уроки</option>
+        <option value="free">Усі вільні (доступні) години</option>
+      </select>
+      <select id="filter-student-select" style="display:none;"></select>
     </div>
   </div>
 
@@ -312,6 +411,7 @@
         <button id="modal-reports-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📊 Звіти</button>
         <button id="modal-issues-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">⚠️ Перевірка помилок</button>
         <button id="modal-audit-log-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🧾 Журнал змін</button>
+        <button id="modal-bulk-lessons-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">📚 Групове керування уроками</button>
         <button id="modal-backups-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🗄 Резервні копії</button>
         <button id="modal-student-link-btn" style="width: 100%; padding: 12px; font-size: 0.95rem;">🔗 Загальне посилання для учнів</button>
 
@@ -333,6 +433,11 @@
       <h2 style="margin-top:0; font-size:1.25rem;">Управління учнями</h2>
 
       <button id="open-add-student-modal-btn" type="button" class="primary" style="width: 100%;">+ Додати учня</button>
+
+      <div class="flex-row" style="margin-top:12px;">
+        <button id="show-active-students-btn" type="button" class="small-btn active" style="flex:1;">Активні</button>
+        <button id="show-archived-students-btn" type="button" class="small-btn" style="flex:1;">Архівовані</button>
+      </div>
 
       <h3 style="font-size: 1rem; margin-top: 18px; margin-bottom: 10px;">Список учнів</h3>
       <div id="students-list" style="max-height: 420px; overflow-y: auto;"></div>
@@ -373,6 +478,17 @@
           <label>Телефон батьків</label>
           <input type="text" id="new-student-parent-phone" placeholder="+380...">
         </div>
+      </div>
+
+      <div class="form-group">
+        <label>Платформа</label>
+        <select id="new-student-cooperation-platform">
+          <option value="">Платформа не вказана</option>
+          <option value="Buki">Buki</option>
+          <option value="Mathema">Mathema</option>
+          <option value="Оптіма">Оптіма</option>
+          <option value="Приватна домовленість">Приватна домовленість</option>
+        </select>
       </div>
 
       <div class="form-group">
@@ -494,6 +610,12 @@
   <div id="requests-modal" class="modal hidden" data-confirm-btn="close-requests-modal-btn" data-cancel-btn="close-requests-modal-btn">
     <div class="modal-content">
       <h2 style="margin-top:0; font-size:1.2rem;">Заявки на запис від учнів</h2>
+      <div class="requests-filter-row" style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+        <label for="requests-student-filter" style="font-size:.82rem;font-weight:700;white-space:nowrap;">Учень:</label>
+        <select id="requests-student-filter" style="flex:1;min-width:0;">
+          <option value="">Усі учні</option>
+        </select>
+      </div>
       <div id="requests-list" style="max-height: 420px; overflow-y: auto; margin-top: 10px;"></div>
       <div style="text-align: right; margin-top: 16px;">
         <button id="close-requests-modal-btn" style="width: 100%;">Закрити</button>
@@ -539,6 +661,96 @@
     </div>
   </div>
 
+  <!-- Модальне вікно групового керування уроками -->
+  <div id="bulk-lessons-modal" class="modal hidden" data-confirm-btn="close-bulk-lessons-modal-btn" data-cancel-btn="close-bulk-lessons-modal-btn">
+    <div class="modal-content wide">
+      <h2 style="margin-top:0; font-size:1.25rem;">📚 Групове керування уроками</h2>
+      <p class="bulk-help">Пакетні операції виконуються атомарно: якщо один цільовий слот конфліктує, вся операція не застосовується.</p>
+
+      <div class="bulk-tabs">
+        <button id="bulk-mode-add" class="active" type="button">➕ Додати серію</button>
+        <button id="bulk-mode-manage" type="button">✏️ Керувати вибраними</button>
+      </div>
+
+      <div id="bulk-add-panel">
+        <div class="bulk-form-grid">
+          <div class="form-group"><label>Учень</label><select id="bulk-add-student-select"></select></div>
+          <div class="form-group"><label>Дата початку</label><input type="date" id="bulk-add-date-input"></div>
+          <div class="form-group"><label>Година</label><select id="bulk-add-hour-select"></select></div>
+          <div class="form-group"><label>Хвилини</label><select id="bulk-add-minute-select"></select></div>
+          <div class="form-group"><label>Статус</label><select id="bulk-add-status-select"><option value="planned">Запланований</option><option value="completed">Відбувся</option><option value="cancelled">Скасований</option></select></div>
+          <div class="form-group"><label>Повторення</label><select id="bulk-add-repeat-select"><option value="1">Лише один раз</option><option value="2">2 тижні</option><option value="3">3 тижні</option><option value="4">4 тижні</option><option value="8">8 тижнів</option></select></div>
+        </div>
+        <div class="form-group"><label>Оплата</label><select id="bulk-add-paid-select"><option value="false">Не оплачено</option><option value="true">Оплачено</option></select></div>
+        <div id="bulk-add-payment-group" class="bulk-form-grid" style="display:none;">
+          <div class="form-group"><label>Сума (грн)</label><input type="number" id="bulk-add-paid-amount" min="0" step="5" value="175"></div>
+          <div class="form-group"><label>Дата оплати</label><input type="date" id="bulk-add-paid-date"></div>
+          <div class="form-group"><label>Спосіб оплати</label><select id="bulk-add-paid-method"><option value="МоноБанк">МоноБанк</option><option value="Готівка">Готівка</option><option value="ПриватБанк">ПриватБанк</option><option value="Ощад Банк">Ощад Банк</option><option value="Mathema">Mathema</option></select></div>
+        </div>
+        <div class="form-group"><label>Тема</label><input type="text" id="bulk-add-topic" placeholder="Необов'язково"></div>
+        <div class="form-group"><label>Домашнє завдання</label><input type="text" id="bulk-add-homework" placeholder="Необов'язково"></div>
+        <div class="bulk-actions"><button id="bulk-add-submit" type="button" class="primary">Додати серію</button></div>
+      </div>
+
+      <div id="bulk-manage-panel" style="display:none;">
+        <div class="bulk-form-grid">
+          <div class="form-group"><label>Від</label><input type="date" id="bulk-from-date"></div>
+          <div class="form-group"><label>До</label><input type="date" id="bulk-to-date"></div>
+          <div class="form-group"><label>Учень</label><select id="bulk-student-filter"></select></div>
+          <div class="form-group"><label>&nbsp;</label><button id="bulk-refresh-list" type="button" style="width:100%;">Оновити список</button></div>
+        </div>
+        <div class="bulk-selection-bar">
+          <button id="bulk-select-all" type="button" class="small-btn">Вибрати всі видимі</button>
+          <button id="bulk-clear-selection" type="button" class="small-btn">Зняти вибір</button>
+          <strong id="bulk-selected-count">Вибрано: 0</strong>
+        </div>
+        <div id="bulk-lessons-list" class="bulk-lessons-list"></div>
+
+        <div id="bulk-edit-fields" style="margin-top:12px;">
+          <h3 style="font-size:1rem;margin:0 0 8px;">Масове редагування</h3>
+          <p class="bulk-help">Для полів зі значенням «Не змінювати» поточні дані кожного уроку залишаться без змін.</p>
+          <div class="bulk-form-grid">
+            <div class="form-group"><label>Учень</label><select id="bulk-edit-student"></select></div>
+            <div class="form-group"><label>Дата</label><select id="bulk-edit-date-mode"><option value="none">Не змінювати</option><option value="set">Встановити одну дату</option><option value="shift">Зсунути на днів</option></select></div>
+            <div class="form-group" id="bulk-edit-set-date-group" style="display:none;"><label>Нова дата</label><input type="date" id="bulk-edit-set-date"></div>
+            <div class="form-group" id="bulk-edit-shift-group" style="display:none;"><label>Зсув, днів</label><input type="number" id="bulk-edit-shift-days" step="1" value="7"></div>
+            <div class="form-group"><label>Година</label><select id="bulk-edit-hour"></select></div>
+            <div class="form-group"><label>Хвилини</label><select id="bulk-edit-minute"></select></div>
+            <div class="form-group"><label>Статус</label><select id="bulk-edit-status"><option value="">Не змінювати</option><option value="planned">Запланований</option><option value="completed">Відбувся</option><option value="cancelled">Скасований</option></select></div>
+            <div class="form-group"><label>Оплата</label><select id="bulk-edit-paid"><option value="">Не змінювати</option><option value="true">Оплачено</option><option value="false">Не оплачено</option></select></div>
+          </div>
+          <div class="bulk-form-grid">
+            <div class="form-group"><label>Сума (грн)</label><input type="number" id="bulk-edit-paid-amount" min="0" step="5" placeholder="Не змінювати"></div>
+            <div class="form-group"><label>Дата оплати</label><input type="date" id="bulk-edit-paid-date"></div>
+            <div class="form-group"><label>Спосіб оплати</label><select id="bulk-edit-paid-method"><option value="">Не змінювати</option><option value="МоноБанк">МоноБанк</option><option value="Готівка">Готівка</option><option value="ПриватБанк">ПриватБанк</option><option value="Ощад Банк">Ощад Банк</option><option value="Mathema">Mathema</option></select></div>
+            <div class="form-group"><label>Повторення</label><select id="bulk-edit-repeat"><option value="1">Не створювати повторення</option><option value="2">Створити до 2 тижнів</option><option value="3">Створити до 3 тижнів</option><option value="4">Створити до 4 тижнів</option><option value="8">Створити до 8 тижнів</option></select></div>
+          </div>
+          <div class="form-group"><label>Тема</label><input type="text" id="bulk-edit-topic" placeholder="Не змінювати"></div>
+          <div class="form-group"><label>Домашнє завдання</label><input type="text" id="bulk-edit-homework" placeholder="Не змінювати"></div>
+          <div class="bulk-actions"><button id="bulk-apply-edit" type="button" class="primary">Застосувати до вибраних</button></div>
+        </div>
+
+        <div class="bulk-danger-zone">
+          <strong>Видалення вибраних уроків</strong>
+          <div class="bulk-actions"><button id="bulk-delete-selected" type="button" class="danger">🗑 Видалити вибрані</button></div>
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:16px;"><button id="close-bulk-lessons-modal-btn" type="button" style="width:100%;">Закрити</button></div>
+    </div>
+  </div>
+
+  <!-- Картка заявок із вільного слота -->
+  <div id="slot-request-modal" class="modal slot-request-modal hidden" data-cancel-btn="slot-request-modal-close-btn">
+    <div class="modal-content">
+      <h2 id="slot-request-modal-title" style="margin-top:0; font-size:1.18rem; color:var(--text-strong);">Запити на слот</h2>
+      <div id="slot-request-modal-body"></div>
+      <div style="text-align:right;margin-top:14px;">
+        <button id="slot-request-modal-close-btn" type="button" style="width:100%;">Закрити</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Універсальне модальне вікно підтвердження -->
   <div id="confirm-modal" class="modal hidden" data-confirm-btn="confirm-modal-ok-btn" data-cancel-btn="confirm-modal-cancel-btn">
     <div class="modal-content" style="max-width: 380px;">
@@ -560,6 +772,7 @@
       <div class="form-group">
         <label>Оберіть учня</label>
         <select id="lesson-student-select"></select>
+        <div id="lesson-student-required" class="required-hint">Оберіть учня перед збереженням уроку.</div>
       </div>
 
       <div class="form-group">
@@ -648,6 +861,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=20260926-3"></script>
 </body>
 </html>
