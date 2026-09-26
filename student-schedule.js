@@ -24,6 +24,8 @@ const state = {
   rescheduleFrom: null,
   hourPicker: null,
   archived: false,
+  selfCancelCount: null,
+  selfCancelLimit: 2,
   navigationBusy: false,
   view: 'week'
 };
@@ -109,6 +111,7 @@ async function loadStudentSchedule(){
     id:String(x.id),type:x.type,lessonId:x.lessonId?String(x.lessonId):null,date:String(x.date),time:String(x.time).slice(0,5),
     oldDate:x.oldDate||null,oldTime:x.oldTime?String(x.oldTime).slice(0,5):null
   })):[];
+  await loadSelfCancelStatus();
 }
 
 function getViewRange(){
@@ -500,6 +503,101 @@ function renderHourPicker(host,date,x){
   const cancel=document.createElement('button');cancel.type='button';cancel.className='hour-picker-cancel';cancel.textContent='Скасувати вибір';cancel.onclick=e=>{e.stopPropagation();state.hourPicker=null;renderWeek();};p.appendChild(cancel);
   host.appendChild(p);
 }
+async function loadSelfCancelStatus(){
+  if(!state.token)return;
+  try{
+    const r=await db.rpc('v2_get_student_self_cancel_status',{p_token:state.token});
+    if(r.error)throw r.error;
+    const payload=r.data&&typeof r.data==='object'&&!Array.isArray(r.data)?r.data:{};
+    state.selfCancelCount=Number.isFinite(Number(payload.count))?Number(payload.count):null;
+    state.selfCancelLimit=Number.isFinite(Number(payload.limit))?Number(payload.limit):2;
+  }catch(e){
+    console.error('Self-cancel status load failed:',e);
+    state.selfCancelCount=null;
+    state.selfCancelLimit=2;
+  }
+  renderSelfCancelCounter();
+}
+
+function ensureSelfCancelCounter(){
+  if($('self-cancel-counter'))return;
+  const counter=document.createElement('span');
+  counter.id='self-cancel-counter';
+  counter.className='info-pill pending-request-counter';
+  counter.setAttribute('role','status');
+  counter.setAttribute('aria-live','polite');
+  const anchor=els.pendingRequestCounter;
+  if(anchor&&anchor.parentNode)anchor.parentNode.insertBefore(counter,anchor.nextSibling);
+  else{
+    const bar=document.querySelector('.info-bar');
+    if(bar)bar.appendChild(counter);
+  }
+  els.selfCancelCounter=counter;
+}
+
+function renderSelfCancelCounter(){
+  const counter=els.selfCancelCounter;
+  if(!counter)return;
+  const hidden=!!state.archived||state.selfCancelCount==null;
+  counter.classList.toggle('hidden',hidden);
+  counter.classList.toggle('limit',!hidden&&state.selfCancelCount>=state.selfCancelLimit);
+  counter.textContent=hidden?'':'Самостійні скасування: '+state.selfCancelCount+' із '+state.selfCancelLimit;
+  counter.setAttribute('aria-hidden',hidden?'true':'false');
+}
+
+function ensureSelfCancelButton(){
+  if(els.lessonDetailCancelBtn)return;
+  const b=document.createElement('button');
+  b.type='button';
+  b.id='lesson-detail-cancel-btn';
+  b.textContent='Скасувати урок';
+  b.style.display='none';
+  b.style.flex='1';
+  b.style.borderColor='#dc2626';
+  b.style.color='#b91c1c';
+  b.style.background='var(--surface)';
+  b.setAttribute('aria-label','Самостійно скасувати запланований урок');
+  const close=els.lessonDetailCloseBtn;
+  const reschedule=els.lessonDetailRescheduleBtn;
+  if(reschedule&&reschedule.parentNode)reschedule.parentNode.insertBefore(b,reschedule);
+  else if(close&&close.parentNode)close.parentNode.appendChild(b);
+  els.lessonDetailCancelBtn=b;
+  b.onclick=()=>cancelOwnLessonFromModal();
+}
+
+function canSelfCancel(l){
+  if(!l||state.archived||state.selfCancelCount==null||state.selfCancelCount>=state.selfCancelLimit)return false;
+  if(l.status!=='planned'||pendingReschedule(l.id))return false;
+  const p=String(l.date).split('-').map(Number),t=String(l.time||'00:00').split(':').map(Number);
+  const start=new Date(p[0],p[1]-1,p[2],t[0]||0,t[1]||0,0,0);
+  return start.getTime()-Date.now()>=3*60*60*1000;
+}
+
+async function cancelOwnLessonFromModal(){
+  const id=state.detailLessonId;
+  const l=state.ownLessons.find(x=>x.id===String(id));
+  if(!l)return;
+  if(!canSelfCancel(l)){toast('Самостійне скасування зараз недоступне. Перевірте час до початку та ліміт 2 із 2.','error',5000);return;}
+  if(!await confirmBox('Скасувати запланований урок '+prettyDate(l.date)+', '+l.time+'? Це скасування буде зараховано до місячного ліміту.','Скасувати урок'))return;
+  try{
+    const r=await db.rpc('v2_student_cancel_lesson',{p_token:state.token,p_lesson_id:l.id});
+    if(r.error)throw r.error;
+    els.lessonDetailModal.classList.add('hidden');
+    await loadStudentSchedule();
+    render();
+    toast('Урок скасовано. Викладач отримав повідомлення.','success',5000);
+  }catch(e){
+    console.error(e);
+    const msg=String(e?.message||'');
+    if(msg.includes('MAX_SELF_CANCELLATIONS'))toast('Ліміт самостійних скасувань на цей місяць уже використано: 2 із 2.','error',6000);
+    else if(msg.includes('CANCEL_TOO_LATE'))toast('До початку уроку залишилося менше 3 годин — самостійне скасування вже недоступне.','error',6000);
+    else if(msg.includes('LESSON_NOT_PLANNED'))toast('Цей урок уже не є запланованим. Оновлюю розклад.','error',5000);
+    else if(msg.includes('STUDENT_ARCHIVED'))toast('Для архівованого учня скасування недоступне.','error',5000);
+    else toast(msg||'Не вдалося скасувати урок.','error',6000);
+    try{await loadStudentSchedule();render();}catch(_){}
+  }
+}
+
 function renderPendingRequests(){
   if(!els.pendingRequestsPanel||!els.pendingRequestsList)return;
   const visible=!state.archived&&state.pendingRequests.length>0;
@@ -550,6 +648,7 @@ async function cancelStudentRequest(req){
 }
 
 function renderPendingCounter(){
+  renderSelfCancelCounter();
   if(!els.pendingRequestCounter)return;
   const n=state.pendingRequests.length;
   const hidden=!!state.archived;
@@ -611,13 +710,23 @@ function renderOwnLesson(col,l){
 }
 
 function showLesson(l){
+  ensureSelfCancelButton();
   const pending=state.archived?null:pendingReschedule(l.id);
+  state.detailLessonId=l.id;
   els.lessonDetailTitle.textContent=prettyDate(l.date)+', '+l.time;
   els.lessonDetailBody.innerHTML='<div class="lesson-detail-row"><b>Статус:</b> '+(l.status==='completed'?'Проведено':'Заплановано')+'</div><div class="lesson-detail-row"><b>Тема уроку:</b> '+(l.topic?esc(l.topic):'—')+'</div><div class="lesson-detail-row"><b>Домашнє завдання:</b> '+(l.homework?esc(l.homework):'—')+'</div>';
   const p=document.createElement('div');p.className='payment-note '+(l.paid?'paid':'unpaid');p.textContent=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':'')+(l.paidMethod?' · '+l.paidMethod:''):'⚠️ Урок ще не оплачено. Будь ласка, зв\'яжіться з викладачем щодо оплати.';els.lessonDetailBody.appendChild(p);
   if(pending){const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⏳ Запит на перенесення</b> вже надіслано на '+prettyDate(pending.date)+', '+pending.time+' — очікує підтвердження.';els.lessonDetailBody.appendChild(q);}
   const can=!state.archived&&l.status==='planned'&&!pending&&!pastSlot(l.date,parseInt(l.time.split(':')[0],10));
+  const canCancel=canSelfCancel(l);
   els.lessonDetailRescheduleBtn.style.display=can?'block':'none';
+  if(els.lessonDetailCancelBtn){
+    els.lessonDetailCancelBtn.style.display=canCancel?'block':'none';
+    els.lessonDetailCancelBtn.disabled=!canCancel;
+  }
+  if(state.selfCancelCount!=null&&state.selfCancelCount>=state.selfCancelLimit&&l.status==='planned'&&!pending){
+    const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⛔ Ліміт самостійних скасувань:</b> '+state.selfCancelCount+' із '+state.selfCancelLimit+' за цей календарний місяць.';els.lessonDetailBody.appendChild(q);
+  }
   els.lessonDetailRescheduleBtn.onclick=()=>{els.lessonDetailModal.classList.add('hidden');state.rescheduleFrom={lessonId:l.id,date:l.date,time:l.time};els.rescheduleBannerText.textContent='Оберіть новий вільний час для перенесення уроку з '+prettyDate(l.date)+', '+l.time;els.rescheduleBanner.classList.remove('hidden');renderWeek();};
   els.lessonDetailModal.classList.remove('hidden');
 }
