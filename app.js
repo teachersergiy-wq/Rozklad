@@ -136,6 +136,8 @@ function syncStatus(v){if(!el.syncStatus)return;el.syncStatus.className=v;el.syn
 function dbFail(e){console.error(e);syncStatus('offline');toast(e&&e.message?e.message:'Не вдалося виконати операцію.','error',5000);}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function prettyDate(s){const p=String(s).split('-').map(Number);if(!p[0])return s||'';return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'});}
+function weekdayShort(s){const p=String(s).split('-').map(Number);if(!p[0])return '';return ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(p[0],p[1]-1,p[2]).getDay()];}
+function lessonListDateTime(s,t){return prettyDate(s).replace(/\sр\.$/,'р.')+' ('+weekdayShort(s)+') - '+t;}
 function monday(d){const x=new Date(d),day=x.getDay();x.setDate(x.getDate()-day+(day===0?-6:1));x.setHours(0,0,0,0);return x;}
 function today(d){const n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();}
 function pastDate(s){return s<iso(new Date());}
@@ -532,11 +534,11 @@ function renderStudentCompleted(id){
   const chronological=ls.slice().sort((a,b)=>{const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);return dt!==0?dt:String(a.id).localeCompare(String(b.id));});
   const absoluteNumberById=new Map(chronological.map((lesson,index)=>[String(lesson.id),index+1]));
   el.studentInfoList.innerHTML='';if(!ls.length){el.studentInfoList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Ще немає проведених уроків.</div>';return;}
-  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.innerHTML='<div class="lesson-history-header"><strong>'+absoluteNumberById.get(String(l.id))+'. '+esc(prettyDate(l.date))+', '+esc(l.time)+'</strong><span class="badge" style="background:'+(l.paid?'#dcfce7':'#fee2e2')+';color:'+(l.paid?'#15803d':'#991b1b')+';">'+(l.paid?'Оплачено':'Не оплачено')+'</span></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'')+(l.homework?'<div class="lesson-history-row"><b>ДЗ:</b> '+esc(l.homework)+'</div>':'');el.studentInfoList.appendChild(x);});
+  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.style.cursor='pointer';x.title='Відкрити деталі уроку';x.onclick=()=>openEditLesson(l.id);x.innerHTML='<div class="lesson-history-header"><strong>'+absoluteNumberById.get(String(l.id))+'. '+esc(lessonListDateTime(l.date,l.time))+'</strong><span class="badge" style="background:'+(l.paid?'#dcfce7':'#fee2e2')+';color:'+(l.paid?'#15803d':'#991b1b')+';">'+(l.paid?'Оплачено':'Не оплачено')+'</span></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'')+(l.homework?'<div class="lesson-history-row"><b>ДЗ:</b> '+esc(l.homework)+'</div>':'');el.studentInfoList.appendChild(x);});
 }
 function renderStudentPlanned(id){
   const ls=studentStats(id).planned.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));el.studentInfoList.innerHTML='';if(!ls.length){el.studentInfoList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Немає запланованих уроків.</div>';return;}
-  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.innerHTML='<div class="lesson-history-header"><strong>'+esc(prettyDate(l.date))+', '+esc(l.time)+'</strong></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'');el.studentInfoList.appendChild(x);});
+  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.style.cursor='pointer';x.title='Відкрити деталі уроку';x.onclick=()=>openEditLesson(l.id);x.innerHTML='<div class="lesson-history-header"><strong>'+esc(lessonListDateTime(l.date,l.time))+'</strong></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'');el.studentInfoList.appendChild(x);});
 }
 function populateRequestsStudentFilter(){
   const node=el.requestsStudentFilter;
