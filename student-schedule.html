@@ -109,7 +109,11 @@
     .calendar-year-counts { display:flex; gap:3px; font-size:.56rem; font-weight:900; }
     .calendar-year-counts .completed { color:#2563eb; }
     .calendar-year-counts .planned { color:#ca8a04; }
+    .student-section-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; max-width:720px; margin:0 auto 10px; }
+    .student-section-tab { min-width:0; width:100%; margin:0; padding:8px 6px; font-size:.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .completed-history-btn { display:block; margin:0 auto 12px; }
+    .period-navigation { display:flex; flex-direction:column; align-items:center; gap:6px; margin-bottom:14px; }
+    .period-arrows { margin-bottom:0; }
     .completed-lessons-list { max-height:65vh; overflow:auto; display:flex; flex-direction:column; gap:7px; }
     .completed-lesson-item { padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-alt); }
     .completed-lesson-date { font-size:.76rem; color:var(--text-muted); font-weight:800; }
@@ -176,6 +180,8 @@
       #lesson-detail-modal .modal-content { width: 100%; max-width: 100%; margin: 0 auto; }
       /* У режимі "Тиждень" на мобільному екрані дні розміщуються парами: Пн+Вт, Ср+Чт, Пт+Сб, Нд окремо */
       .week-columns.week-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .student-section-tabs { gap:4px; margin-bottom:8px; }
+      .student-section-tab { padding:7px 4px; font-size:.68rem; }
       .nav-row { gap: 4px; margin-bottom: 12px; }
       #prev-week-btn, #next-week-btn { flex: 0 0 34px; width: 34px; min-width: 34px; padding: 5px 6px; font-size: .82rem; }
       #current-week-display { flex: 1 1 auto; min-width: 0; max-width: 100%; font-size: 1.45rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
@@ -211,6 +217,11 @@
 
   <div id="debt-notice" class="debt-notice hidden" role="status" aria-live="polite" aria-hidden="true"></div>
 
+  <div class="student-section-tabs" id="student-section-tabs" role="tablist" aria-label="Розділи учнівського кабінету">
+    <button id="completed-lessons-btn" class="student-section-tab" type="button">📚 Проведені уроки</button>
+    <button id="pending-requests-toggle-btn" class="student-section-tab" type="button" aria-controls="pending-requests-panel" aria-expanded="false">⏳ Запити на розгляді</button>
+  </div>
+
   <div id="pending-requests-panel" class="pending-requests-panel hidden" role="region" aria-label="Мої запити на розгляді">
     <div class="pending-requests-header">
       <strong>Мої запити на розгляді</strong>
@@ -225,13 +236,13 @@
     <button id="reschedule-banner-cancel-btn">Скасувати</button>
   </div>
 
-  <div class="nav-row">
-    <button id="prev-week-btn">&lt;</button>
-    <span id="current-week-display" class="date-display-big"></span>
-    <button id="next-week-btn">&gt;</button>
-  </div>
-  <div class="nav-row">
+  <div class="period-navigation">
     <button id="today-btn" class="primary">Поточний період</button>
+    <div class="nav-row period-arrows">
+      <button id="prev-week-btn">&lt;</button>
+      <span id="current-week-display" class="date-display-big"></span>
+      <button id="next-week-btn">&gt;</button>
+    </div>
   </div>
 
   <div class="view-switch" role="tablist" aria-label="Режим перегляду">
@@ -239,8 +250,6 @@
     <button id="view-month-btn" type="button" role="tab">Місяць</button>
     <button id="view-year-btn" type="button" role="tab">Рік</button>
   </div>
-  <button id="completed-lessons-btn" class="completed-history-btn" type="button">📚 Проведені уроки</button>
-
   <div id="schedule-container">
     <div class="loading">Завантаження розкладу...</div>
   </div>
@@ -280,6 +289,6 @@
     </div>
   </div>
 
-  <script src="student-schedule.js?v=20260927-1"></script>
+  <script src="student-schedule.js?v=20260927-2"></script>
 </body>
 </html>
