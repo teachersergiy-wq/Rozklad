@@ -16,6 +16,10 @@ const state = {
   completedHistoryLoaded: false,
   completedHistoryLoading: false,
   completedHistoryError: '',
+  plannedHistory: [],
+  plannedHistoryLoaded: false,
+  plannedHistoryLoading: false,
+  plannedHistoryError: '',
   busySlots: [],
   openOverrides: [],
   closedOverrides: [],
@@ -113,7 +117,56 @@ async function loadStudentSchedule(){
     id:String(x.id),type:x.type,lessonId:x.lessonId?String(x.lessonId):null,date:String(x.date),time:String(x.time).slice(0,5),
     oldDate:x.oldDate||null,oldTime:x.oldTime?String(x.oldTime).slice(0,5):null
   })):[];
+  try{
+    await loadPlannedHistory(true);
+  }catch(e){
+    console.error('Planned history load failed:',e);
+  }
   await loadSelfCancelStatus();
+}
+
+async function loadPlannedHistory(force=false){
+  if(state.plannedHistoryLoaded&&!force){
+    renderPlannedHistory();
+    return;
+  }
+  state.plannedHistoryLoading=true;
+  state.plannedHistoryError='';
+  try{
+    const from=new Date(2000,0,1);
+    const to=new Date(2100,11,31);
+    const r=await db.rpc('v2_get_student_schedule',{
+      p_token:state.token,p_from:iso(from),p_to:iso(to)
+    });
+    if(r.error)throw r.error;
+    const payload=r.data&&typeof r.data==='object'&&!Array.isArray(r.data)
+      ?r.data
+      :Array.isArray(r.data)&&r.data[0]&&typeof r.data[0]==='object'
+        ?r.data[0]
+        :{};
+    const rows=Array.isArray(payload.ownLessons)?payload.ownLessons:[];
+    state.plannedHistory=rows.filter(x=>x&&x.status==='planned').map(x=>({
+      id:String(x.id),
+      date:String(x.date),
+      time:String(x.time||'00:00').slice(0,5),
+      status:'planned',
+      topic:x.topic||'',
+      homework:x.homework||'',
+      paid:!!x.paid,
+      paidAmount:x.paidAmount==null?null:Number(x.paidAmount),
+      paidMethod:x.paidMethod||null
+    })).sort((a,b)=>{
+      const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+      return dt!==0?dt:String(a.id).localeCompare(String(b.id));
+    });
+    state.plannedHistoryLoaded=true;
+  }catch(e){
+    console.error('Planned history load failed:',e);
+    state.plannedHistoryError=e&&e.message?e.message:'Не вдалося завантажити список запланованих уроків.';
+  }finally{
+    state.plannedHistoryLoading=false;
+    renderPlannedHistory();
+  }
 }
 
 function getViewRange(){
@@ -252,18 +305,30 @@ function renderPlannedHistory(){
   const host=$('planned-lessons-list');
   const count=$('planned-lessons-count');
   if(!host)return;
-  const rows=(state.ownLessons||[]).filter(x=>x&&x.status==='planned').slice().sort((a,b)=>{
-    const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
-    return dt!==0?dt:String(a.id).localeCompare(String(b.id));
-  });
+  const rows=(state.plannedHistory||[]).slice();
   const absoluteNumberById=new Map(rows.map((lesson,index)=>[String(lesson.id),index+1]));
   if(count)count.textContent='Усього заплановано: '+rows.length;
   host.innerHTML='';
+  if(state.plannedHistoryLoading&&!state.plannedHistoryLoaded){
+    const loading=document.createElement('div');
+    loading.className='loading';
+    loading.textContent='Завантаження запланованих уроків...';
+    host.appendChild(loading);
+    return;
+  }
+  if(state.plannedHistoryError){
+    const note=document.createElement('div');
+    note.className='completed-history-error';
+    note.textContent='Не вдалося оновити список запланованих уроків: '+state.plannedHistoryError;
+    host.appendChild(note);
+  }
   if(!rows.length){
-    const empty=document.createElement('div');
-    empty.className='loading';
-    empty.textContent='Запланованих уроків не знайдено.';
-    host.appendChild(empty);
+    if(!state.plannedHistoryError){
+      const empty=document.createElement('div');
+      empty.className='loading';
+      empty.textContent='Запланованих уроків не знайдено.';
+      host.appendChild(empty);
+    }
     return;
   }
   rows.forEach(l=>{
