@@ -173,6 +173,53 @@
     #lesson-detail-modal .modal-content { width: min(100%, 380px); max-width: 380px; max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px); margin: 0 auto; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
     .flex-row { display: flex; gap: 10px; }
 
+
+    @media (min-width: 641px) and (max-width: 1000px) and (orientation: landscape) {
+      body:has(#schedule-container.calendar-month) .header {
+        flex-direction:row;
+        align-items:center;
+        justify-content:space-between;
+        gap:6px;
+        margin-bottom:8px;
+        padding:4px 0;
+        white-space:nowrap;
+        overflow:hidden;
+      }
+      body:has(#schedule-container.calendar-month) .header-top-row {
+        width:auto;
+        flex:0 0 auto;
+        gap:5px;
+        padding-right:34px;
+      }
+      body:has(#schedule-container.calendar-month) .header h1 {
+        font-size:.92rem;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        max-width:220px;
+      }
+      body:has(#schedule-container.calendar-month) .header p {
+        display:none;
+      }
+      body:has(#schedule-container.calendar-month) .header .info-bar {
+        flex:1 1 auto;
+        min-width:0;
+        max-width:none;
+        margin-top:0;
+        justify-content:flex-end;
+        flex-wrap:nowrap;
+        overflow-x:auto;
+      }
+      body:has(#schedule-container.calendar-month) .header .info-pill {
+        font-size:.66rem;
+        padding:3px 6px;
+      }
+      body:has(#schedule-container.calendar-month) .header #theme-toggle-btn {
+        padding:4px 7px;
+        font-size:.9rem;
+      }
+    }
+
     @media (max-width: 640px) {
       body { padding: 10px; }
       .modal { align-items: flex-start; }
