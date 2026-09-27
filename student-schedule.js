@@ -27,6 +27,7 @@ const state = {
   selfCancelCount: null,
   selfCancelLimit: 2,
   navigationBusy: false,
+  pendingRequestsOpen: false,
   view: 'week'
 };
 
@@ -52,6 +53,7 @@ function cache(){
   els.rescheduleBannerText=$('reschedule-banner-text');
   els.pendingRequestsPanel=$('pending-requests-panel');
   els.pendingRequestsList=$('pending-requests-list');
+  els.pendingRequestsToggleBtn=$('pending-requests-toggle-btn');
   els.pendingRequestCounter=$('pending-request-counter');
   els.debtNotice=$('debt-notice');
   els.rescheduleBannerCancelBtn=$('reschedule-banner-cancel-btn');
@@ -287,7 +289,7 @@ function ensurePlannedLessonsSection(){
   if(!completedBtn)return;
   const button=document.createElement('button');
   button.id='planned-lessons-btn';
-  button.className='completed-history-btn';
+  button.className='student-section-tab';
   button.type='button';
   button.textContent='📅 Заплановані уроки';
   completedBtn.insertAdjacentElement('afterend',button);
@@ -600,9 +602,21 @@ async function cancelOwnLessonFromModal(){
 
 function renderPendingRequests(){
   if(!els.pendingRequestsPanel||!els.pendingRequestsList)return;
-  const visible=!state.archived&&state.pendingRequests.length>0;
+  const available=!state.archived&&state.pendingRequests.length>0;
+  const visible=available&&state.pendingRequestsOpen;
   els.pendingRequestsPanel.classList.toggle('hidden',!visible);
-  if(!visible){els.pendingRequestsList.innerHTML='';return;}
+  if(els.pendingRequestsToggleBtn){
+    els.pendingRequestsToggleBtn.classList.toggle('hidden',!available);
+    els.pendingRequestsToggleBtn.textContent=available
+      ? '⏳ Запити на розгляді ('+state.pendingRequests.length+')'
+      : '⏳ Запити на розгляді';
+    els.pendingRequestsToggleBtn.setAttribute('aria-expanded',visible?'true':'false');
+  }
+  if(!available){
+    state.pendingRequestsOpen=false;
+    els.pendingRequestsList.innerHTML='';
+    return;
+  }
   els.pendingRequestsList.innerHTML='';
   state.pendingRequests.forEach(r=>{
     const item=document.createElement('div');item.className='pending-request-item';
@@ -890,6 +904,11 @@ function setupUI(){
     const modal=document.getElementById('completed-lessons-modal');
     modal.classList.remove('hidden');
     await loadCompletedHistory(true);
+  };
+  els.pendingRequestsToggleBtn.onclick=()=>{
+    if(state.archived||!state.pendingRequests.length)return;
+    state.pendingRequestsOpen=!state.pendingRequestsOpen;
+    renderPendingRequests();
   };
   $('completed-lessons-close-btn').onclick=()=>document.getElementById('completed-lessons-modal').classList.add('hidden');
   els.lessonDetailCloseBtn.onclick=closeLessonDetailModal;
