@@ -300,6 +300,29 @@
 
     /* Адаптація під мобільні */
     /* Landscape на мобільних: місячна сітка використовує всю ширину viewport */
+
+    @media (min-width: 641px) and (max-width: 1000px) and (orientation: landscape) {
+      body:has(#calendar-grid.grid-month) .header {
+        display:grid;
+        grid-template-columns:auto minmax(170px,1fr) auto auto;
+        align-items:center;
+        gap:6px;
+        padding:4px 0;
+        margin-bottom:8px;
+      }
+      body:has(#calendar-grid.grid-month) .header-main-row { display:contents; }
+      body:has(#calendar-grid.grid-month) .header-main-row h1 { font-size:.95rem; white-space:nowrap; }
+      body:has(#calendar-grid.grid-month) .header .date-group { min-width:0; justify-content:center; gap:2px; }
+      body:has(#calendar-grid.grid-month) .header .date-group button { padding:4px 6px; font-size:.7rem; min-width:0; }
+      body:has(#calendar-grid.grid-month) .header #current-date-display { min-width:0; overflow:hidden; }
+      body:has(#calendar-grid.grid-month) .header .view-group { flex-wrap:nowrap; gap:3px; margin:0; }
+      body:has(#calendar-grid.grid-month) .header .view-group button { padding:4px 6px; font-size:.68rem; white-space:nowrap; }
+      body:has(#calendar-grid.grid-month) .header .tools-row { flex-wrap:nowrap; gap:4px; margin:0; }
+      body:has(#calendar-grid.grid-month) .header .tools-row .icon-btn { padding:4px 6px; font-size:.78rem; }
+      body:has(#calendar-grid.grid-month) .header #sync-status { white-space:nowrap; font-size:.68rem; }
+      body:has(#calendar-grid.grid-month) .filter-panel { grid-column:1 / -1; }
+    }
+
     @media (min-width: 641px) and (max-width: 1000px) and (orientation: landscape) {
       body { padding: 8px; }
       .calendar-month { width: 100%; max-width: none; gap: 4px; }
