@@ -752,10 +752,42 @@ function renderAudit(){
 }
 function reportRange(){const p=el.reportPeriodSelect.value,t=new Date(),s=iso(t);if(p==='today')return{from:s,to:s};if(p==='week'){const a=monday(t),b=new Date(a);b.setDate(a.getDate()+6);return{from:iso(a),to:iso(b)}}if(p==='month')return{from:iso(new Date(t.getFullYear(),t.getMonth(),1)),to:iso(new Date(t.getFullYear(),t.getMonth()+1,0))};if(p==='year')return{from:iso(new Date(t.getFullYear(),0,1)),to:iso(new Date(t.getFullYear(),11,31))};if(p==='all'){if(!state.lessons.length)return{from:s,to:s};const d=state.lessons.map(x=>x.date).sort();return{from:d[0],to:d[d.length-1]};}return{from:el.reportFromDate.value||s,to:el.reportToDate.value||s};}
 function generateReport(){
-  const r=reportRange(),done=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to&&l.status==='completed'),paid=done.filter(l=>l.paid),unpaid=done.filter(l=>!l.paid),sum=paid.reduce((a,l)=>a+Number(l.paidAmount||0),0),m=new Map();
-  done.forEach(l=>{const s=state.students.find(x=>x.id===l.studentId),n=s?s.name:'Невідомий учень';if(!m.has(n))m.set(n,{count:0,paid:0,sum:0});const x=m.get(n);x.count++;if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}});
-  let rows='';m.forEach((x,n)=>rows+='<tr><td>'+esc(n)+'</td><td>'+x.count+'</td><td>'+x.paid+'</td><td>'+x.sum+' грн</td></tr>');
-  el.reportOutput.innerHTML='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div><div class="stat-cards"><div class="stat-card"><b>'+done.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено · '+sum+' грн</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div></div><table class="report-table"><thead><tr><th>Учень</th><th>Проведено</th><th>Оплачено</th><th>Сума</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Немає даних</td></tr>')+'</tbody></table>';
+  const r=reportRange(),type=el.reportTypeSelect?el.reportTypeSelect.value:'completed-payment';
+  const inRange=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to);
+  const done=inRange.filter(l=>l.status==='completed'),paid=done.filter(l=>l.paid);
+  const unpaid=done.filter(l=>!l.paid),sum=paid.reduce((a,l)=>a+Number(l.paidAmount||0),0);
+  const studentName=id=>{const st=state.students.find(x=>x.id===id);return st?st.name:'Невідомий учень';};
+  const period='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>';
+  let body='';
+  if(type==='summary'){
+    const m=new Map();
+    inRange.forEach(l=>{
+      const n=studentName(l.studentId);
+      if(!m.has(n))m.set(n,{planned:0,completed:0,paid:0,sum:0});
+      const x=m.get(n);
+      if(l.status==='planned')x.planned++;
+      if(l.status==='completed'){x.completed++;if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}}
+    });
+    let rows='';
+    m.forEach((x,n)=>rows+='<tr><td>'+esc(n)+'</td><td>'+x.planned+'</td><td>'+x.completed+'</td><td>'+x.paid+'</td><td>'+x.sum+' грн</td></tr>');
+    body='<table class="report-table"><thead><tr><th>Учень</th><th>Заплановано</th><th>Проведено</th><th>Оплачено</th><th>Сума</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає даних</td></tr>')+'</tbody></table>';
+  }else if(type==='planned'){
+    const rows=inRange.filter(l=>l.status==='planned').sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||studentName(a.studentId).localeCompare(studentName(b.studentId))).map(l=>'<tr><td>'+esc(l.date)+'</td><td>'+esc(l.time)+'</td><td>'+esc(studentName(l.studentId))+'</td><td>'+esc(l.topic||'-')+'</td></tr>').join('');
+    body='<table class="report-table"><thead><tr><th>Дата</th><th>Час</th><th>Учень</th><th>Тема</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Немає запланованих уроків</td></tr>')+'</tbody></table>';
+  }else if(type==='payments'){
+    const m=new Map();
+    paid.forEach(l=>{const method=l.paidMethod||'Не вказано';if(!m.has(method))m.set(method,{count:0,sum:0});const x=m.get(method);x.count++;x.sum+=Number(l.paidAmount||0);});
+    let rows='';
+    m.forEach((x,method)=>rows+='<tr><td>'+esc(method)+'</td><td>'+x.count+'</td><td>'+x.sum+' грн</td></tr>');
+    body='<table class="report-table"><thead><tr><th>Спосіб оплати</th><th>Оплачених уроків</th><th>Сума</th></tr></thead><tbody>'+(rows||'<tr><td colspan="3" style="text-align:center;color:var(--text-muted);">Немає оплачених уроків</td></tr>')+'</tbody></table>';
+  }else{
+    const m=new Map();
+    done.forEach(l=>{const n=studentName(l.studentId);if(!m.has(n))m.set(n,{count:0,paid:0,sum:0});const x=m.get(n);x.count++;if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}});
+    let rows='';m.forEach((x,n)=>rows+='<tr><td>'+esc(n)+'</td><td>'+x.count+'</td><td>'+x.paid+'</td><td>'+x.sum+' грн</td></tr>');
+    body='<table class="report-table"><thead><tr><th>Учень</th><th>Проведено</th><th>Оплачено</th><th>Сума</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Немає даних</td></tr>')+'</tbody></table>';
+  }
+  const stats=(type==='planned')?'':('<div class="stat-cards"><div class="stat-card"><b>'+done.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено · '+sum+' грн</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div></div>');
+  el.reportOutput.innerHTML=period+stats+body;
 }
 function renderIssues(){
   const a=[];state.lessons.forEach(l=>{if(!state.students.some(s=>s.id===l.studentId))a.push('Урок '+l.date+' '+l.time+': учня не знайдено.');if(pastDate(l.date)&&l.status==='planned')a.push('Урок '+prettyDate(l.date)+', '+l.time+': дата минула, але статус — заплановано.');if(l.status==='completed'&&!l.topic)a.push('Урок '+prettyDate(l.date)+', '+l.time+': не вказано тему.');});
