@@ -103,7 +103,7 @@ async function loadStudentSchedule(){
   if(r.error)throw r.error;
   if(!r.data||!r.data.student)throw new Error('Невірне або застаріле персональне посилання.');
 
-  state.student=r.data.student;
+  state.student=Object.assign({},r.data.student,{hidePaymentAmount:!!r.data.student.hidePaymentAmount});
   state.archived=!!r.data.student.archived;
   state.settings=r.data.scheduleSettings||state.settings;
   state.ownLessons=Array.isArray(r.data.ownLessons)?r.data.ownLessons.map(x=>({
@@ -251,6 +251,16 @@ function renderDebtNotice(){
   }
 }
 
+function studentPaymentText(l,includeMethod=false){
+  if(!l.paid){
+    return includeMethod
+      ? '⚠️ Урок ще не оплачено. Будь ласка, зв\'яжіться з викладачем щодо оплати.'
+      : 'Не оплачено';
+  }
+  if(state.student&&state.student.hidePaymentAmount)return 'Оплачено';
+  return 'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':'')+(includeMethod&&l.paidMethod?' · '+l.paidMethod:'');
+}
+
 function renderCompletedHistory(){
   const host=$('completed-lessons-list');
   const count=$('completed-lessons-count');
@@ -295,7 +305,7 @@ function renderCompletedHistory(){
     const date=document.createElement('div');date.className='completed-lesson-date';date.textContent=(absoluteNumberById.get(String(l.id))||0)+'. '+lessonListDateTime(l.date,l.time);
     const topic=document.createElement('div');topic.className='completed-lesson-topic';topic.textContent=l.topic||'Тема не вказана';
     const meta=document.createElement('div');meta.className='completed-lesson-meta';
-    const paid=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':''):'Не оплачено';
+    const paid=studentPaymentText(l);
     meta.textContent='Домашнє завдання: '+(l.homework||'—')+' · '+paid;
     item.append(date,topic,meta);
     host.appendChild(item);
@@ -807,7 +817,7 @@ function showLesson(l){
   state.detailLessonId=l.id;
   els.lessonDetailTitle.textContent=prettyDate(l.date)+', '+l.time;
   els.lessonDetailBody.innerHTML='<div class="lesson-detail-row"><b>Статус:</b> '+(l.status==='completed'?'Проведено':'Заплановано')+'</div><div class="lesson-detail-row"><b>Тема уроку:</b> '+(l.topic?esc(l.topic):'—')+'</div><div class="lesson-detail-row"><b>Домашнє завдання:</b> '+(l.homework?esc(l.homework):'—')+'</div>';
-  const p=document.createElement('div');p.className='payment-note '+(l.paid?'paid':'unpaid');p.textContent=l.paid?'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':'')+(l.paidMethod?' · '+l.paidMethod:''):'⚠️ Урок ще не оплачено. Будь ласка, зв\'яжіться з викладачем щодо оплати.';els.lessonDetailBody.appendChild(p);
+  const p=document.createElement('div');p.className='payment-note '+(l.paid?'paid':'unpaid');p.textContent=studentPaymentText(l,true);els.lessonDetailBody.appendChild(p);
   if(pending){const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⏳ Запит на перенесення</b> вже надіслано на '+prettyDate(pending.date)+', '+pending.time+' — очікує підтвердження.';els.lessonDetailBody.appendChild(q);}
   const can=!state.archived&&l.status==='planned'&&!pending&&!pastSlot(l.date,parseInt(l.time.split(':')[0],10));
   const canCancel=canSelfCancel(l);
