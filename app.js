@@ -848,6 +848,71 @@ function setupModals(){
     if(b)b.click();
   });
 }
+function setupUI(){
+  ensureTeacherNotificationsPanel();
+  safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
+  safeBind('settingsBtn','onclick',()=>el.settingsModal.classList.remove('hidden'));
+  safeBind('closeSettingsModalBtn','onclick',()=>el.settingsModal.classList.add('hidden'));
+  safeBind('editModeCheckbox','onchange',e=>{state.isEditMode=e.target.checked;render();});
+  safeBind('modalAddLessonBtn','onclick',()=>{el.settingsModal.classList.add('hidden');openAddLesson();});
+  safeBind('modalManageStudentsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderStudents();el.studentsModal.classList.remove('hidden');});
+  safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');state.requestsStudentId=null;renderRequests();el.requestsModal.classList.remove('hidden');});
+  safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
+  safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
+  safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
+  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
+  safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
+  safeBind('reportPeriodSelect','onchange',()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none');
+  safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;generateReport();});
+  safeBind('generateReportBtn','onclick',generateReport);
+  safeBind('modalIssuesBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderIssues();el.issuesModal.classList.remove('hidden');});
+  safeBind('closeIssuesModalBtn','onclick',()=>el.issuesModal.classList.add('hidden'));
+  safeBind('modalAuditLogBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');});
+  safeBind('closeAuditLogModalBtn','onclick',()=>el.auditLogModal.classList.add('hidden'));
+  safeBind('modalBackupsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderBackups();el.backupsModal.classList.remove('hidden');});
+  safeBind('closeBackupsModalBtn','onclick',()=>el.backupsModal.classList.add('hidden'));
+  safeBind('studentsInfoBtn','onclick',()=>{renderStudentsPicker();el.studentsPickerModal.classList.remove('hidden');});
+  safeBind('closeStudentsPickerModalBtn','onclick',()=>el.studentsPickerModal.classList.add('hidden'));
+  safeBind('closeStudentInfoModalBtn','onclick',()=>el.studentInfoModal.classList.add('hidden'));
+  safeBind('studentInfoHistoryBtn','onclick',()=>renderStudentCompleted(state.currentInfoStudentId));
+  safeBind('studentInfoPlannedBtn','onclick',()=>renderStudentPlanned(state.currentInfoStudentId));
+  safeBind('studentInfoCopyLinkBtn','onclick',async()=>{try{await navigator.clipboard.writeText(el.studentInfoLinkInput.value);toast('Персональне посилання скопійовано.','success');}catch(e){toast('Не вдалося скопіювати посилання.','error');}});
+  safeBind('closeStudentsModalBtn','onclick',()=>el.studentsModal.classList.add('hidden'));
+  safeBind('showActiveStudentsBtn','onclick',()=>{state.showArchivedStudents=false;renderStudents();});
+  safeBind('showArchivedStudentsBtn','onclick',()=>{state.showArchivedStudents=true;renderStudents();});
+  safeBind('lessonStudentSelect','onchange',clearLessonStudentRequired);
+  safeBind('openAddStudentModalBtn','onclick',()=>{clearStudentForm();el.studentsModal.classList.add('hidden');el.addStudentModal.classList.remove('hidden');});
+  safeBind('closeAddStudentModalBtn','onclick',()=>{el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');});
+  safeBind('saveNewStudentBtn','onclick',addStudent);
+  safeBind('lessonPaidSelect','onchange',paymentVisible);
+  safeBind('closeLessonModalBtn','onclick',()=>el.lessonModal.classList.add('hidden'));
+  safeBind('saveLessonBtn','onclick',saveLesson);
+  safeBind('deleteLessonBtn','onclick',()=>{if(state.editingLessonId)deleteLesson(state.editingLessonId);});
+  safeBind('viewDayBtn','onclick',()=>{state.view='day';render();});
+  safeBind('viewWeekBtn','onclick',()=>{state.view='week';render();});
+  safeBind('viewMonthBtn','onclick',()=>{state.view='month';render();});
+  safeBind('viewYearBtn','onclick',()=>{state.view='year';render();});
+  safeBind('filterToggleBtn','onclick',()=>{state.filterOpen=!state.filterOpen;if(el.filterPanel)el.filterPanel.classList.toggle('hidden',!state.filterOpen);});
+  safeBind('filterTypeSelect','onchange',e=>{state.filterType=e.target.value;render();});
+  safeBind('filterStudentSelect','onchange',e=>{state.filterStudentId=e.target.value;render();});
+  safeBind('todayBtn','onclick',()=>{state.currentDate=new Date();render();});
+  safeBind('prevBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);else state.currentDate=new Date(state.currentDate.getFullYear()-1,0,1);render();});
+  safeBind('nextBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);else state.currentDate=new Date(state.currentDate.getFullYear()+1,0,1);render();});
+  try{if(el.modalStudentLinkBtn)el.modalStudentLinkBtn.style.display='none';}catch(e){console.error('UI setup failed: modalStudentLinkBtn',e);}
+  try{
+    if(!$('manual-backup-btn')){
+      const b=document.createElement('button');b.id='manual-backup-btn';b.type='button';b.style.cssText='width:100%;padding:12px;';b.textContent='💾 Зробити бекап';b.onclick=takeBackup;
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.insertBefore(b,el.modalBackupsBtn);else console.error('UI setup skipped: modalBackupsBtn parent missing');
+    }
+  }catch(e){console.error('UI binding failed: manual-backup-btn',e);}
+  try{
+    if(!$('logout-teacher-btn')){
+      const b=document.createElement('button');b.id='logout-teacher-btn';b.type='button';b.className='danger';b.style.cssText='width:100%;padding:12px;';b.textContent='Вийти з акаунта викладача';
+      b.onclick=async()=>{const r=await db.auth.signOut();if(r.error)dbFail(r.error);else{setVisible(false);$('teacher-auth-gate').style.display='flex';}};
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.appendChild(b);else console.error('UI setup skipped: logout container missing');
+    }
+  }catch(e){console.error('UI binding failed: logout-teacher-btn',e);}
+}
 async function start(gate,knownUser=null){
   const m=$('teacher-login-message');
   try{
