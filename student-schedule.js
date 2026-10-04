@@ -901,17 +901,33 @@ function showArchivedAccessMessage(){
   toast(msg,'error',6000);
 }
 
+function topmostOpenModal(){
+  const modals=Array.from(document.querySelectorAll('.modal:not(.hidden)'));
+  if(!modals.length)return null;
+  return modals.reduce((top,m)=>{
+    const tz=Number.parseInt(getComputedStyle(m).zIndex,10)||0;
+    const topz=Number.parseInt(getComputedStyle(top).zIndex,10)||0;
+    if(tz>topz)return m;
+    return m;
+  });
+}
 function setupModals(){
   document.addEventListener('keydown',e=>{
-    if(e.key!=='Escape'&&e.key!=='Enter')return;const m=document.querySelector('.modal:not(.hidden)');if(!m)return;e.preventDefault();
-    const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn,b=id?$(id):null;if(b)b.click();
+    if(e.key!=='Escape'&&e.key!=='Enter')return;
+    const m=topmostOpenModal();
+    if(!m)return;
+    const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn;
+    const b=id?$(id):null;
+    if(!b)return;
+    e.preventDefault();
+    b.click();
   });
-  document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{
-    if(e.target!==m)return;
-    if(m===els.lessonDetailModal){closeLessonDetailModal();return;}
-    if(innerWidth>640)return;
-    const id=m.dataset.cancelBtn,b=id?$(id):null;if(b)b.click();
-  }));
+  document.addEventListener('click',e=>{
+    const m=e.target&&e.target.closest?e.target.closest('.modal'):null;
+    if(!m||m.classList.contains('hidden')||e.target!==m)return;
+    const id=m.dataset.cancelBtn,b=id?$(id):null;
+    if(b)b.click();
+  });
 }
 
 async function navigatePeriod(delta){
