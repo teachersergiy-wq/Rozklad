@@ -236,6 +236,9 @@ async function loadCompletedHistory(force=false){
   }finally{
     state.completedHistoryLoading=false;
     renderCompletedHistory();
+    // The absolute lesson numbers depend on the full completed + planned history.
+    // Refresh the visible calendar after completed history finishes loading.
+    render();
   }
 }
 function renderDebtNotice(){
@@ -443,10 +446,12 @@ function renderCalendarMonth(){
       h.title='Доступні години: '+formatHourRanges(hours);
       cell.appendChild(h);
     }
+    const absoluteNumberById=buildAbsoluteLessonNumberMap();
     state.ownLessons.filter(l=>l.date===date).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{
       const sourceRequest=pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10));
+      const lessonNumber=absoluteNumberById.get(String(l.id))||0;
       const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson'+(sourceRequest?' reschedule-source':'');
-      b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(sourceRequest?'↩ Перенесення із цього слоту':l.status==='completed'?'Проведено':'Заплановано')+'</small>';
+      b.innerHTML='<span>'+ (lessonNumber?'№'+lessonNumber+' · ':'') +esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(sourceRequest?'↩ Перенесення із цього слоту':l.status==='completed'?'Проведено':'Заплановано')+'</small>';
       b.title=sourceRequest
         ? 'Є pending-запит на перенесення з цього слоту → '+prettyDate(sourceRequest.date)+', '+sourceRequest.time
         : 'Відкрити деталі уроку';
@@ -454,7 +459,8 @@ function renderCalendarMonth(){
     });
     state.pendingRequests.filter(r=>r.type==='reschedule'&&r.date===date).sort((a,b)=>String(a.time).localeCompare(String(b.time))).forEach(r=>{
       const target=document.createElement('div');target.className='calendar-month-reschedule-target';
-      target.innerHTML='<span>↪ '+esc(r.time)+'</span><small>Очікує перенесення сюди</small>';
+      const lessonNumber=buildAbsoluteLessonNumberMap().get(String(r.lessonId))||0;
+      target.innerHTML='<span>↪ '+(lessonNumber?'№'+lessonNumber+' · ':'')+esc(r.time)+'</span><small>Очікує перенесення сюди</small>';
       target.title='Цільовий слот pending-запиту на перенесення з '+prettyDate(r.oldDate||'')+', '+(r.oldTime||'');
       cell.appendChild(target);
     });
@@ -787,6 +793,7 @@ function renderPendingCounter(){
   els.pendingRequestCounter.setAttribute('aria-hidden',hidden?'true':'false');
 }
 function renderWeek(){
+  const absoluteNumberById=buildAbsoluteLessonNumberMap();
   const start=monday(state.currentDate),end=new Date(start);end.setDate(start.getDate()+6);
   els.currentWeekDisplay.textContent=start.getDate()+' '+MONTH_NAMES[start.getMonth()]+' - '+end.getDate()+' '+MONTH_NAMES[end.getMonth()];
   renderPendingRequests();
@@ -810,10 +817,11 @@ function renderWeek(){
       const e=document.createElement('div');e.className='no-slots';e.textContent=state.archived?'Історія цього дня відсутня або прихована після дати архівації':'Немає вільних годин';col.appendChild(e);
     }
     entries.forEach(x=>{
-      if(x.type==='lesson'){renderOwnLesson(col,x.lesson);return;}
+      if(x.type==='lesson'){renderOwnLesson(col,x.lesson,absoluteNumberById);return;}
       if(x.type==='reschedule-target'){
         const p=document.createElement('div');p.className='slot-reschedule-target';
-        p.innerHTML='<div class="slot-reschedule-target-time">'+esc(time(x.hour))+'</div><div class="slot-reschedule-target-label">↪ Очікує перенесення сюди</div>';
+        const targetNumber=buildAbsoluteLessonNumberMap().get(String(x.request.lessonId))||0;
+        p.innerHTML='<div class="slot-reschedule-target-time">'+(targetNumber?'№'+targetNumber+' · ':'')+esc(time(x.hour))+'</div><div class="slot-reschedule-target-label">↪ Очікує перенесення сюди</div>';
         p.title='Цільовий слот вашого pending-запиту на перенесення з '+prettyDate(x.request.oldDate||'')+', '+(x.request.oldTime||'');
         col.appendChild(p);
         return;
@@ -833,11 +841,12 @@ function renderWeek(){
   els.scheduleContainer.appendChild(wrap);
 }
 
-function renderOwnLesson(col,l){
+function renderOwnLesson(col,l,absoluteNumberById=null){
   const pending=state.archived?null:pendingReschedule(l.id),isCompleted=l.status==='completed',isPaid=l.paid;
+  const lessonNumber=(absoluteNumberById||buildAbsoluteLessonNumberMap()).get(String(l.id))||0;
   const sourceRequest=state.archived?null:pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10));
   const x=document.createElement('div');x.className='slot-lesson '+(pending||sourceRequest?'pending-reschedule-source':(isCompleted?'completed':'planned'));
-  const t=document.createElement('div');t.className='slot-lesson-time';t.textContent=l.time;x.appendChild(t);
+  const t=document.createElement('div');t.className='slot-lesson-time';t.textContent=(lessonNumber?'№'+lessonNumber+' · ':'')+l.time;x.appendChild(t);
   const n=document.createElement('div');n.className='slot-lesson-student';n.textContent=state.student.name;x.appendChild(n);
   if(l.topic){const q=document.createElement('div');q.className='slot-lesson-topic';q.textContent=l.topic;x.appendChild(q);}
   const b=document.createElement('div');b.className='slot-lesson-badges';
@@ -870,7 +879,8 @@ function showLesson(l){
   ensureSelfCancelButton();
   const pending=state.archived?null:pendingReschedule(l.id);
   state.detailLessonId=l.id;
-  els.lessonDetailTitle.textContent=prettyDate(l.date)+', '+l.time;
+  const detailNumber=buildAbsoluteLessonNumberMap().get(String(l.id))||0;
+  els.lessonDetailTitle.textContent=(detailNumber?'№'+detailNumber+' · ':'')+prettyDate(l.date)+', '+l.time;
   els.lessonDetailBody.innerHTML='<div class="lesson-detail-row"><b>Статус:</b> '+(l.status==='completed'?'Проведено':'Заплановано')+'</div><div class="lesson-detail-row"><b>Тема уроку:</b> '+(l.topic?esc(l.topic):'—')+'</div><div class="lesson-detail-row"><b>Домашнє завдання:</b> '+(l.homework?esc(l.homework):'—')+'</div>';
   const p=document.createElement('div');p.className='payment-note '+(l.paid?'paid':'unpaid');p.textContent=studentPaymentText(l,true);els.lessonDetailBody.appendChild(p);
   if(pending){const q=document.createElement('div');q.className='lesson-detail-row';q.style.marginTop='10px';q.innerHTML='<b>⏳ Запит на перенесення</b> вже надіслано на '+prettyDate(pending.date)+', '+pending.time+' — очікує підтвердження.';els.lessonDetailBody.appendChild(q);}
