@@ -373,7 +373,7 @@ function pendingRequestsForSlot(date,h){
   const t=time(h);
   return state.bookingRequests.filter(r=>r.status==='pending'&&r.date===date&&r.time===t).map(r=>{
     const s=state.students.find(x=>x.id===r.studentId);
-    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null};
+    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null,createdAt:r.createdAt||r.created_at||null};
   });
 }
 function pendingRescheduleRequestsForSourceLesson(lesson){
@@ -386,7 +386,7 @@ function pendingRescheduleRequestsForSourceLesson(lesson){
     r.oldTime===lesson.time
   ).map(r=>{
     const s=state.students.find(x=>x.id===r.studentId);
-    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null};
+    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null,createdAt:r.createdAt||r.created_at||null};
   });
 }
 function pendingRequestsForRange(date,start,end){
