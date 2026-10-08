@@ -762,9 +762,10 @@ function renderRequests(){
   }
   p.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),item=document.createElement('div');item.className='request-item';const row=document.createElement('div');row.className='request-row';
     row.innerHTML=r.type==='reschedule'?'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>Перенесення: '+esc(prettyDate(r.oldDate))+' '+esc(r.oldTime||'')+' → '+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>':'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>'+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>';
+    const created=document.createElement('div');created.className='request-created-at';created.textContent='Створено: '+formatRequestCreatedAt(r);
     const a=document.createElement('div');a.className='request-actions';
     const go=document.createElement('button');go.type='button';go.className='small-btn';go.textContent='Перейти до слота';go.title='Відкрити день і підсвітити цей слот';go.onclick=e=>{e.stopPropagation();focusRequestSlot(r);};
-    const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(go,ok,no);item.append(row,a);el.requestsList.appendChild(item);
+    const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(go,ok,no);item.append(row,created,a);el.requestsList.appendChild(item);
   });
 }
 async function approve(id){try{syncStatus('saving');const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку підтверджено.','success');}catch(e){console.error(e);syncStatus('offline');toast(friendlyApproveError(e),'error',6000);}}
