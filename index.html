@@ -28,6 +28,9 @@
       --slot-request-bg: #fff7ed;
       --slot-request-border: #f97316;
       --slot-request-text: #9a3412;
+      --slot-request-source-bg: #eef2ff;
+      --slot-request-source-border: #6366f1;
+      --slot-request-source-text: #3730a3;
       --slot-unavail-bg: #fef2f2;
       --slot-unavail-border: #fca5a5;
       --slot-unavail-text: #b91c1c;
@@ -56,6 +59,9 @@
       --slot-request-bg: #3a2417;
       --slot-request-border: #fb923c;
       --slot-request-text: #fed7aa;
+      --slot-request-source-bg: #1e1b4b;
+      --slot-request-source-border: #818cf8;
+      --slot-request-source-text: #c7d2fe;
       --slot-unavail-bg: #3b1d1d;
       --slot-unavail-border: #7f1d1d;
       --slot-unavail-text: #fca5a5;
@@ -149,7 +155,10 @@
     .slot-free.drag-over { background: #e0e7ff; border-color: #6366f1; }
     .slot-free.slot-range { background: var(--slot-range-bg); border-color: var(--slot-range-border); color: var(--slot-range-text); }
     .slot-free.has-pending-request { background: var(--slot-request-bg); border: 2px solid var(--slot-request-border); color: var(--slot-request-text); flex-direction: column; gap: 3px; font-weight: 800; }
-    .pending-request-marker { display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--slot-request-border); background: var(--surface); color: var(--slot-request-text); font-size: 0.68rem; font-weight: 900; line-height: 1.2; white-space: nowrap; }
+    .lesson-card.has-pending-source-request { border: 2px solid var(--slot-request-source-border); box-shadow: 0 0 0 2px var(--slot-request-source-bg); }
+    .month-lesson-badge.has-pending-source-request { outline: 2px solid var(--slot-request-source-border); outline-offset: 1px; background-image: linear-gradient(135deg, transparent 0 72%, var(--slot-request-source-bg) 72%); }
+    .pending-request-marker { display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--slot-request-border); background: var(--surface); color: var(--slot-request-text); font-size: 0.68rem; font-weight: 900; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+    .pending-request-marker.source { border-color: var(--slot-request-source-border); background: var(--slot-request-source-bg); color: var(--slot-request-source-text); }
     .slot-request-modal .modal-content { max-width: 520px; width: min(520px, 100%); }
     .slot-request-item { border: 1px solid var(--border); background: var(--surface-alt); border-radius: 10px; padding: 10px; margin-bottom: 9px; }
     .slot-request-item:last-child { margin-bottom: 0; }
@@ -789,6 +798,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20261004-4"></script>
+  <script src="app.js?v=20261008-1"></script>
 </body>
 </html>

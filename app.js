@@ -376,23 +376,49 @@ function pendingRequestsForSlot(date,h){
     return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null};
   });
 }
+function pendingRescheduleRequestsForSourceLesson(lesson){
+  if(!lesson)return[];
+  return state.bookingRequests.filter(r=>
+    r.status==='pending' &&
+    r.type==='reschedule' &&
+    String(r.lessonId||'')===String(lesson.id||'') &&
+    r.oldDate===lesson.date &&
+    r.oldTime===lesson.time
+  ).map(r=>{
+    const s=state.students.find(x=>x.id===r.studentId);
+    return {id:r.id,type:r.type,studentId:r.studentId,studentName:s?s.name:'Невідомий учень',date:r.date,time:r.time,oldDate:r.oldDate||null,oldTime:r.oldTime||null};
+  });
+}
 function pendingRequestsForRange(date,start,end){
   const out=[];for(let h=start;h<end;h++)out.push(...pendingRequestsForSlot(date,h));return out;
 }
-function attachPendingRequestInfo(node,requests){
+function attachPendingRequestInfo(node,requests,mode='target',slotDate=null){
   if(!requests.length)return;
-  node.classList.add('has-pending-request');
+  const isSource=mode==='source';
+  node.classList.add(isSource?'has-pending-source-request':'has-pending-request');
   node._pendingRequests=requests;
-  const marker=document.createElement('span');marker.className='pending-request-marker';marker.setAttribute('aria-hidden','true');marker.textContent=requests.length>1?'📝 Заявки: '+requests.length:'📝 Є заявка';node.appendChild(marker);
+  const marker=document.createElement('span');
+  marker.className='pending-request-marker'+(isSource?' source':'');
+  marker.setAttribute('aria-hidden','true');
+  marker.textContent=isSource
+    ? (requests.length>1?'↩ Перенесення: '+requests.length:'↩ Запит на перенесення')
+    : (requests.length>1?'📝 Заявки: '+requests.length:'📝 Є заявка');
+  marker.title=isSource?'Відкрити заявку на перенесення':'Відкрити заявку';
+  marker.onclick=e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    openSlotRequestModal(slotDate||requests[0].date,requests);
+  };
+  node.appendChild(marker);
   node.dataset.pendingRequestCount=String(requests.length);
   node.dataset.pendingRequestIds=JSON.stringify(requests.map(r=>r.id));
   const details=requests.map(r=>r.type==='reschedule'
-    ? r.studentName+' — перенесення з '+prettyDate(r.oldDate||'')+' '+(r.oldTime||'')
+    ? r.studentName+' — перенесення з '+prettyDate(r.oldDate||'')+' '+(r.oldTime||'')+' → '+prettyDate(r.date)+' '+(r.time||'')
     : r.studentName+' — запис');
-  const label='Є заявка(и), що очікують: '+details.join('; ');
+  const label=(isSource?'Є запит на перенесення: ':'Є заявка(и), що очікують: ')+details.join('; ');
   node.dataset.pendingRequestDetails=JSON.stringify(requests);
   const hi=state.highlightedRequestSlot;
-  if(hi&&requests.some(r=>String(r.id)===String(hi.requestId))){node.classList.add('request-slot-highlight');node.dataset.highlightedRequestId=String(hi.requestId);}
+  if(!isSource&&hi&&requests.some(r=>String(r.id)===String(hi.requestId))){node.classList.add('request-slot-highlight');node.dataset.highlightedRequestId=String(hi.requestId);}
   node.setAttribute('aria-label',label);
   node.title=label;
 }
@@ -432,7 +458,9 @@ function lessonCard(l){
   const nm=document.createElement('span');nm.className='lesson-student-name';nm.textContent=s?s.name:'Учень';nm.onclick=e=>{e.stopPropagation();if(s)openStudent(s.id);};if(isFullyCompletedLesson(l)){tm.style.fontWeight='900';nm.style.fontWeight='900';tm.style.fontSize='calc(1em * var(--fully-completed-font-scale))';nm.style.fontSize='calc(1em * var(--fully-completed-font-scale))';}row.append(tm,nm);
   const b=document.createElement('div');b.className='lesson-badges';const p=document.createElement('span');p.className='badge';p.style.backgroundColor=l.paid?'#dcfce7':'#fee2e2';p.style.color=l.paid?'#15803d':'#991b1b';p.textContent=l.paid?'Оплачено':'Не опл.';
   const st=document.createElement('span');st.className='badge';st.style.backgroundColor=l.status==='completed'?'#e2e8f0':'#dbeafe';st.style.color=l.status==='completed'?'#334155':'#1d4ed8';st.textContent=l.status==='completed'?'Відбувся':'Заплан.';b.append(p,st);c.append(row,b);
+  const sourceRequests=pendingRescheduleRequestsForSourceLesson(l);
   c.onclick=()=>openEditLesson(l.id);c.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showContext(e.clientX,e.clientY,{lessonId:l.id});};
+  if(sourceRequests.length)attachPendingRequestInfo(c,sourceRequests,'source',l.date);
   if(c.draggable)c.ondragstart=e=>e.dataTransfer.setData('text/plain',l.id);return c;
 }
 function renderColumns(days){
@@ -464,7 +492,528 @@ function renderMonth(){
       render();
     };
     const n=document.createElement('div');n.className='month-day-num '+(today(d)?'today-num':'');n.textContent=day;c.appendChild(n);
-    state.lessons.filter(l=>l.date===date&&match(l)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{const s=state.students.find(q=>q.id===l.studentId),b=document.createElement('div');b.className='month-lesson-badge';b.style.backgroundColor=s?s.color:COLORS[0];b.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-weight:600;">'+esc(l.time)+' '+esc(s?s.name:'')+'</span><span>'+(l.paid?'$':'')+(l.status==='completed'?' ✓':'')+'</span>';if(isFullyCompletedLesson(l)){const titleSpan=b.querySelector('span');if(titleSpan){titleSpan.style.fontWeight='900';titleSpan.style.fontSize='calc(1em * var(--fully-completed-font-scale))';}}b.onclick=e=>{e.stopPropagation();openEditLesson(l.id);};c.appendChild(b);});
+    state.lessons.filter(l=>l.date===date&&match(l)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{const s=state.students.find(q=>q.id===l.studentId),b=document.createElement('div');b.className='month-lesson-badge';b.style.backgroundColor=s?s.color:COLORS[0];b.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-weight:600;">'+esc(l.time)+' '+esc(s?s.name:'')+'</span><span>'+(l.paid?'
+    el.calendarGrid.appendChild(c);
+  }
+  const cells=start+total;for(let i=cells;i<Math.ceil(cells/7)*7;i++){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(i-cells+1)+'</div>';el.calendarGrid.appendChild(x);}
+}
+function renderYear(){
+  el.calendarGrid.className='year-grid';el.calendarGrid.innerHTML='';
+  const y=state.currentDate.getFullYear();
+  for(let m=0;m<12;m++){
+    const card=document.createElement('section');card.className='year-month';
+    card.style.cursor='pointer';
+    card.title='Відкрити місячний розклад';
+    card.onclick=()=>{
+      state.view='month';
+      state.currentDate=new Date(y,m,1);
+      render();
+    };
+    const title=document.createElement('h3');title.className='year-month-title';title.textContent=new Date(y,m,1).toLocaleDateString('uk-UA',{month:'long'});card.appendChild(title);
+    const weekdays=document.createElement('div');weekdays.className='year-weekdays';DAYS.forEach(d=>{const x=document.createElement('div');x.textContent=d;weekdays.appendChild(x);});card.appendChild(weekdays);
+    const grid=document.createElement('div');grid.className='year-days';
+    const first=new Date(y,m,1),start=(first.getDay()+6)%7,total=new Date(y,m+1,0).getDate();
+    for(let i=0;i<start;i++){const x=document.createElement('div');x.className='year-day empty';grid.appendChild(x);}
+    for(let day=1;day<=total;day++){
+      const date=iso(new Date(y,m,day)),lessons=state.lessons.filter(l=>l.date===date),completed=lessons.filter(l=>l.status==='completed').length,planned=lessons.filter(l=>l.status==='planned').length;
+      const x=document.createElement('div');x.className='year-day '+(today(new Date(y,m,day))?'today':'');x.title=prettyDate(date);
+      const n=document.createElement('div');n.className='year-day-num';n.textContent=day;x.appendChild(n);
+      const counts=document.createElement('div');counts.className='year-counts';
+      if(completed){const q=document.createElement('span');q.className='year-count completed';q.textContent=completed;counts.appendChild(q);}
+      if(planned){const q=document.createElement('span');q.className='year-count planned';q.textContent=planned;counts.appendChild(q);}
+      x.appendChild(counts);grid.appendChild(x);
+    }
+    while(grid.children.length%7!==0){const x=document.createElement('div');x.className='year-day empty';grid.appendChild(x);}
+    card.appendChild(grid);el.calendarGrid.appendChild(card);
+  }
+}
+function render(){
+  dateDisplay();viewButtons();selects();badges();
+  if(el.slotLegend)el.slotLegend.classList.toggle('hidden',state.view==='month'||state.view==='year');
+  if(state.view==='year')renderYear();
+  else if(state.view==='month')renderMonth();
+  else if(state.view==='week'){const s=monday(state.currentDate),ds=[];for(let i=0;i<7;i++){const d=new Date(s);d.setDate(s.getDate()+i);ds.push(d);}renderColumns(ds);}
+  else renderColumns([new Date(state.currentDate)]);
+}
+function clearLessonStudentRequired(){
+  if(el.lessonStudentRequired)el.lessonStudentRequired.style.display='none';
+  if(el.lessonStudentSelect)el.lessonStudentSelect.classList.remove('input-error');
+}
+function requireLessonStudent(){
+  if(el.lessonStudentRequired)el.lessonStudentRequired.style.display='block';
+  if(el.lessonStudentSelect){el.lessonStudentSelect.classList.add('input-error');el.lessonStudentSelect.focus();}
+}
+function openAddLesson(date,h){
+  if(!activeStudents().length){toast("Спочатку додайте хоча б одного активного учня.",'error');el.studentsModal.classList.remove('hidden');state.showArchivedStudents=false;renderStudents();return;}
+  state.editingLessonId=null;el.lessonModalTitle.textContent='Додати урок';selects();clearLessonStudentRequired();el.lessonStudentSelect.value='';el.lessonDateInput.value=date||iso(state.currentDate);el.lessonHourSelect.value=String(h??18).padStart(2,'0');el.lessonMinuteSelect.value='00';el.lessonPaidSelect.value='false';el.lessonStatusSelect.value='planned';el.lessonTopicInput.value='';el.lessonHomeworkInput.value='';el.lessonPaidAmount.value=DEFAULT_PAID_AMOUNT;el.lessonPaidDate.value=el.lessonDateInput.value;el.lessonPaidMethod.value=DEFAULT_PAID_METHOD;el.repeatGroup.style.display='block';el.deleteLessonBtn.style.display='none';formEdit(true);paymentVisible();el.lessonModal.classList.remove('hidden');
+}
+function paymentVisible(){el.paymentDetailsGroup.style.display=el.lessonPaidSelect.value==='true'?'block':'none';}
+function formEdit(ok){
+  [el.lessonStudentSelect,el.lessonDateInput,el.lessonHourSelect,el.lessonMinuteSelect,el.lessonPaidSelect,el.lessonStatusSelect,el.lessonTopicInput,el.lessonHomeworkInput,el.lessonPaidAmount,el.lessonPaidDate,el.lessonPaidMethod].forEach(x=>x.disabled=!ok);
+  el.saveLessonBtn.style.display=ok?'block':'none';el.lessonPastNotice.style.display=ok?'none':'block';
+}
+function openEditLesson(id){
+  const l=state.lessons.find(x=>x.id===String(id));if(!l)return;state.editingLessonId=l.id;selects();el.lessonStudentSelect.value=l.studentId;el.lessonDateInput.value=l.date;const p=(l.time||'18:00').split(':');el.lessonHourSelect.value=p[0];el.lessonMinuteSelect.value=p[1]||'00';el.lessonPaidSelect.value=String(l.paid);el.lessonStatusSelect.value=l.status;el.lessonTopicInput.value=l.topic;el.lessonHomeworkInput.value=l.homework;el.lessonPaidAmount.value=l.paidAmount??DEFAULT_PAID_AMOUNT;el.lessonPaidDate.value=l.paidDate||l.date;el.lessonPaidMethod.value=PAID_METHODS.includes(l.paidMethod)?l.paidMethod:DEFAULT_PAID_METHOD;el.repeatGroup.style.display='none';paymentVisible();const ok=!pastDate(l.date)||state.isEditMode;el.lessonModalTitle.textContent=ok?'Редагувати урок':'Перегляд уроку';formEdit(ok);el.deleteLessonBtn.style.display=l.status==='planned'?'block':'none';el.lessonModal.classList.remove('hidden');
+}
+async function saveLesson(){
+  const sid=el.lessonStudentSelect.value,date=el.lessonDateInput.value,t=el.lessonHourSelect.value+':'+el.lessonMinuteSelect.value,paid=el.lessonPaidSelect.value==='true',status=el.lessonStatusSelect.value;
+  if(!sid){requireLessonStudent();toast('Оберіть учня перед збереженням уроку.','error');return;}
+  clearLessonStudentRequired();
+  if(!date){toast('Виберіть дату уроку.','error');return;}
+  const payload={schedule_id:state.scheduleId,student_id:sid,lesson_date:date,lesson_time:t,status:status,topic:el.lessonTopicInput.value.trim()||null,homework:el.lessonHomeworkInput.value.trim()||null,paid:paid,paid_amount:paid?(parseFloat(el.lessonPaidAmount.value)||DEFAULT_PAID_AMOUNT):null,paid_date:paid?(el.lessonPaidDate.value||date):null,paid_method:paid?(el.lessonPaidMethod.value||DEFAULT_PAID_METHOD):null};
+  try{syncStatus('saving');if(state.editingLessonId){const old=state.lessons.find(x=>x.id===state.editingLessonId);if(old&&pastDate(old.date)&&!state.isEditMode){toast('Для минулої дати увімкніть режим редагування.','error');return;}const r=await db.from('v2_lessons').update(payload).eq('id',state.editingLessonId).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;}
+  else{const count=parseInt(el.lessonRepeatSelect.value,10)||1,p=date.split('-').map(Number);for(let i=0;i<count;i++){const d=new Date(p[0],p[1]-1,p[2]+i*7),r=await db.from('v2_lessons').insert(Object.assign({},payload,{lesson_date:iso(d)}));if(r.error)throw r.error;}}
+  await loadV2();el.lessonModal.classList.add('hidden');render();toast('Урок збережено.','success');}catch(e){dbFail(e);}
+}
+async function deleteLesson(id){
+  const l=state.lessons.find(x=>x.id===String(id));if(!l||l.status!=='planned'){toast('Видаляти можна лише заплановані уроки.','error');return;}const s=state.students.find(x=>x.id===l.studentId);if(!await confirmBox('Видалити урок '+(s?' "'+s.name+'"':'')+' — '+l.date+' '+l.time+'?'))return;
+  try{syncStatus('saving');const r=await db.from('v2_lessons').delete().eq('id',l.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();el.lessonModal.classList.add('hidden');render();toast('Урок видалено.','success');}catch(e){dbFail(e);}
+}
+async function moveLesson(id,date,t){
+  const l=state.lessons.find(x=>x.id===String(id));if(!l)return;if(!state.isEditMode&&(pastDate(l.date)||pastDate(date))){toast('Перенесення минулих дат потребує режиму редагування.','error');return;}
+  try{syncStatus('saving');const r=await db.from('v2_lessons').update({lesson_date:date,lesson_time:t}).eq('id',l.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();render();}catch(e){dbFail(e);}
+}
+function clearStudentForm(){el.newStudentName.value='';el.newStudentGrade.value='';el.newStudentPhone.value='';el.newStudentParentName.value='';el.newStudentCooperationPlatform.value='';state.selectedNewStudentColor=COLORS[0];renderSwatches();}
+function renderSwatches(){el.newStudentSwatches.innerHTML='';COLORS.forEach(c=>{const x=document.createElement('div');x.className='color-swatch '+(state.selectedNewStudentColor===c?'selected':'');x.style.backgroundColor=c;x.onclick=()=>{state.selectedNewStudentColor=c;renderSwatches();};el.newStudentSwatches.appendChild(x);});}
+async function addStudent(){
+  const name=el.newStudentName.value.trim();if(!name){toast("Введіть ім'я учня.",'error');return;}try{syncStatus('saving');const r=await db.from('v2_students').insert({schedule_id:state.scheduleId,name:name,grade:el.newStudentGrade.value.trim()||null,phone:el.newStudentPhone.value.trim()||null,parent_name:el.newStudentParentName.value.trim()||null,parent_phone:el.newStudentParentPhone.value.trim()||null,color:state.selectedNewStudentColor,cooperation_platform:el.newStudentCooperationPlatform.value||null});if(r.error)throw r.error;await loadV2();clearStudentForm();el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');renderStudents();render();toast('Учня додано.','success');}catch(e){dbFail(e);}
+}
+async function updateStudent(id,patch){try{const r=await db.from('v2_students').update(patch).eq('id',String(id)).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();renderStudents();render();}catch(e){dbFail(e);}}
+async function fetchPendingRequestCount(studentId){
+  const r=await db.from('v2_booking_requests')
+    .select('id')
+    .eq('schedule_id',state.scheduleId)
+    .eq('student_id',String(studentId))
+    .eq('status','pending');
+  if(r.error)throw r.error;
+  return Array.isArray(r.data)?r.data.length:0;
+}
+async function archiveStudent(s){
+  let pendingCount;
+  try{
+    // Re-read pending requests from the server immediately before archiving.
+    // This avoids relying on a stale teacher-page cache when a student just sent a request.
+    pendingCount=await fetchPendingRequestCount(s.id);
+  }catch(e){
+    dbFail(e);
+    return;
+  }
+  if(pendingCount){
+    const open=await confirmBox('Не можна архівувати учня "'+s.name+'". Спочатку розгляньте запити учня (підтвердьте або відхиліть), потім архівуйте. Очікує запитів: '+pendingCount+'. Відкрити заявки цього учня?');
+    if(open)openRequestsForStudent(s.id);
+    return;
+  }
+  if(!await confirmBox('Архівувати учня "'+s.name+'"? Його уроки залишаться у розкладі та історії.'))return;
+  try{
+    syncStatus('saving');
+    const r=await db.from('v2_students').update({archived_at:new Date().toISOString()}).eq('id',s.id).eq('schedule_id',state.scheduleId);
+    if(r.error)throw r.error;
+    await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня архівовано. Його уроки залишилися у розкладі.','success');
+  }catch(e){
+    const msg=String(e?.message||e?.details||'');
+    if(msg.includes('STUDENT_HAS_PENDING_REQUESTS')){
+      const m=msg.match(/([0-9]+)\s+запит/);
+      const count=m?Number(m[1]):state.bookingRequests.filter(x=>x.status==='pending'&&x.studentId===String(s.id)).length;
+      syncStatus('saved');
+      const open=await confirmBox('Не можна архівувати учня "'+s.name+'". Спочатку розгляньте запити учня (підтвердьте або відхиліть), потім архівуйте. Очікує запитів: '+(count||'невідому кількість')+'. Відкрити заявки цього учня?');
+      if(open)openRequestsForStudent(s.id);
+      return;
+    }
+    dbFail(e);
+  }
+}
+async function unarchiveStudent(s){if(!await confirmBox('Розархівувати учня "'+s.name+'"? Уся збережена інформація буде повернута до активного списку.'))return;try{syncStatus('saving');const r=await db.from('v2_students').update({archived_at:null}).eq('id',s.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня розархівовано.','success');}catch(e){dbFail(e);}}
+function renderStudents(){
+  el.studentsList.innerHTML='';
+  const list=state.showArchivedStudents?archivedStudents():activeStudents();
+  if(!list.length){el.studentsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">'+(state.showArchivedStudents?'Архів порожній.':'Список активних учнів порожній.')+'</div>';return;}
+  list.forEach(s=>{const edit=state.editingStudentIds.has(s.id),item=document.createElement('div');item.className='student-item';const head=document.createElement('div');head.className='student-item-header';const name=document.createElement('div');name.className='student-name-block';
+    if(edit){const i=document.createElement('input');i.className='student-edit-name-input';i.value=s.name;i.onchange=()=>updateStudent(s.id,{name:i.value.trim()||s.name});name.appendChild(i);}else{const n=document.createElement('div');n.className='student-name-line';n.textContent=s.name;name.appendChild(n);if(s.grade){const g=document.createElement('div');g.className='student-grade-line';g.textContent='Клас: '+s.grade;name.appendChild(g);}}
+    const card=document.createElement('button');card.className='small-btn';card.textContent='Картка';card.onclick=()=>openStudent(s.id);const editBtn=document.createElement('button');editBtn.className='small-btn '+(edit?'active':'');editBtn.textContent=edit?'✓ Готово':'✏️ Редагувати';editBtn.onclick=()=>{edit?state.editingStudentIds.delete(s.id):state.editingStudentIds.add(s.id);renderStudents();};const del=document.createElement('button');del.className=state.showArchivedStudents?'primary':'danger';del.textContent=state.showArchivedStudents?'Розархівувати':'Архівувати';del.onclick=()=>state.showArchivedStudents?unarchiveStudent(s):archiveStudent(s);head.append(name,card,editBtn,del);item.appendChild(head);
+    if(s.archivedAt){const note=document.createElement('div');note.className='student-archive-note';note.style.cssText='margin-top:6px;padding:7px 9px;border-radius:8px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);font-size:.78rem;font-weight:700;line-height:1.35;';note.textContent='🔒 Архівований: перегляд історії лише до '+prettyDate(String(s.archivedAt).slice(0,10))+'. Запис і перенесення уроків недоступні.';item.appendChild(note);}
+    if(!edit){const cc=document.createElement('div');cc.className='student-contact-line';const a=[];if(s.grade)a.push('🎓 '+esc(s.grade));if(s.phone)a.push('📞 '+esc(s.phone));if(s.parentName)a.push('👤 '+esc(s.parentName));if(s.parentPhone)a.push('📞 батьки: '+esc(s.parentPhone));a.push('💼 '+esc(platformLabel(s)));cc.innerHTML=a.join(' &nbsp;·&nbsp; ');item.appendChild(cc);}
+    else{const extra=document.createElement('div');extra.className='student-extra-fields';const fld=(ph,val,key)=>{const i=document.createElement('input');i.placeholder=ph;i.value=val||'';i.onchange=()=>updateStudent(s.id,{[key]:i.value.trim()});return i;};const platform=document.createElement('select');platform.innerHTML='<option value="">Платформа не вказана</option>'+COOPERATION_PLATFORMS.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');platform.value=s.cooperationPlatform||'';platform.onchange=()=>updateStudent(s.id,{cooperation_platform:platform.value||null});extra.append(fld('Клас',s.grade,'grade'),fld('Контактний телефон',s.phone,'phone'),fld("Ім'я батьків",s.parentName,'parent_name'),fld('Телефон батьків',s.parentPhone,'parent_phone'),platform);item.appendChild(extra);const lab=document.createElement('div');lab.style.cssText='font-size:.78rem;font-weight:600;color:var(--text-muted);margin-top:2px;';lab.textContent='Колір картки:';item.appendChild(lab);const sw=document.createElement('div');sw.className='student-color-swatches';COLORS.forEach(col=>{const d=document.createElement('div');d.className='swatch-dot '+(s.color===col?'active':'');d.style.backgroundColor=col;d.onclick=()=>updateStudent(s.id,{color:col});sw.appendChild(d);});item.appendChild(sw);}
+    el.studentsList.appendChild(item);
+  });
+}
+function studentStats(id){const ls=state.lessons.filter(l=>l.studentId===String(id)),done=ls.filter(l=>l.status==='completed');return{lessons:ls,completed:done,planned:ls.filter(l=>l.status==='planned'),completedCount:done.length,completedUnpaid:done.filter(l=>!l.paid).length,paidNotCompleted:ls.filter(l=>l.paid&&l.status!=='completed').length};}
+function personalLink(id){const s=state.students.find(x=>x.id===String(id));if(!s||!s.accessToken)return'';const u=new URL('student-schedule.html',window.location.href);u.searchParams.set('token',s.accessToken);return u.toString();}
+function openStudent(id){
+  const s=state.students.find(x=>x.id===String(id));if(!s)return;state.currentInfoStudentId=s.id;el.studentInfoTitle.textContent=s.name;
+  el.studentInfoFields.innerHTML=(s.archivedAt?'<div class="student-archive-note" style="margin-bottom:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);font-size:.8rem;font-weight:700;">🔒 Архівований: перегляд історії лише до '+esc(prettyDate(String(s.archivedAt).slice(0,10)))+'. Запис і перенесення уроків недоступні.</div>':'')+'<div class="info-row"><span>Клас</span><span>'+(esc(s.grade)||'—')+'</span></div><div class="info-row"><span>Платформа</span><span>'+esc(platformLabel(s))+'</span></div><div class="info-row"><span>Контактний телефон</span><span>'+(esc(s.phone)||'—')+'</span></div><div class="info-row"><span>Ім\'я батьків</span><span>'+(esc(s.parentName)||'—')+'</span></div><div class="info-row"><span>Телефон батьків</span><span>'+(esc(s.parentPhone)||'—')+'</span></div>';
+  const st=studentStats(s.id);
+  const debtNotice=st.completedUnpaid>0
+    ? '<div class="student-debt-notice unpaid">⚠️ Заборгованість: <b>'+st.completedUnpaid+'</b> проведених уроків не оплачено.</div>'
+    : '<div class="student-debt-notice clear">✓ Заборгованості за проведеними уроками немає.</div>';
+  el.studentInfoStats.innerHTML=debtNotice+'<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);el.studentInfoModal.classList.remove('hidden');
+}
+function renderStudentsPicker(){
+  el.studentsPickerList.innerHTML='';activeStudents().forEach(s=>{const x=document.createElement('div');x.className='clickable-list-item';x.style.backgroundColor=s.color||COLORS[0];x.innerHTML='<span>'+esc(s.name)+'</span><span style="font-weight:500;font-size:.8rem;color:#475569;">'+esc(s.grade||'')+'</span>';x.onclick=()=>{el.studentsPickerModal.classList.add('hidden');openStudent(s.id);};el.studentsPickerList.appendChild(x);});
+}
+function renderStudentCompleted(id){
+  const ls=studentStats(id).completed.slice().sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
+  const chronological=ls.slice().sort((a,b)=>{const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);return dt!==0?dt:String(a.id).localeCompare(String(b.id));});
+  const absoluteNumberById=new Map(chronological.map((lesson,index)=>[String(lesson.id),index+1]));
+  el.studentInfoList.innerHTML='';if(!ls.length){el.studentInfoList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Ще немає проведених уроків.</div>';return;}
+  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.style.cursor='pointer';x.title='Відкрити деталі уроку';x.onclick=()=>openEditLesson(l.id);x.innerHTML='<div class="lesson-history-header"><strong>'+absoluteNumberById.get(String(l.id))+'. '+esc(lessonListDateTime(l.date,l.time))+'</strong><span class="badge" style="background:'+(l.paid?'#dcfce7':'#fee2e2')+';color:'+(l.paid?'#15803d':'#991b1b')+';">'+(l.paid?'Оплачено':'Не оплачено')+'</span></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'')+(l.homework?'<div class="lesson-history-row"><b>ДЗ:</b> '+esc(l.homework)+'</div>':'');el.studentInfoList.appendChild(x);});
+}
+function renderStudentPlanned(id){
+  const ls=studentStats(id).planned.slice().sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time));el.studentInfoList.innerHTML='';if(!ls.length){el.studentInfoList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Немає запланованих уроків.</div>';return;}
+  ls.forEach(l=>{const x=document.createElement('div');x.className='lesson-history-item';x.style.cursor='pointer';x.title='Відкрити деталі уроку';x.onclick=()=>openEditLesson(l.id);x.innerHTML='<div class="lesson-history-header"><strong>'+esc(lessonListDateTime(l.date,l.time))+'</strong></div>'+(l.topic?'<div class="lesson-history-row"><b>Тема:</b> '+esc(l.topic)+'</div>':'');el.studentInfoList.appendChild(x);});
+}
+function populateRequestsStudentFilter(){
+  const node=el.requestsStudentFilter;
+  if(!node)return;
+  const current=state.requestsStudentId?String(state.requestsStudentId):'';
+  node.innerHTML='<option value="">Усі учні</option>';
+  state.students.slice().sort((a,b)=>a.name.localeCompare(b.name,'uk')).forEach(s=>{
+    const count=state.bookingRequests.filter(r=>r.status==='pending'&&r.studentId===s.id).length;
+    const o=document.createElement('option');o.value=s.id;o.textContent=s.name+(count?' · '+count:'');node.appendChild(o);
+  });
+  if(current&&state.students.some(s=>s.id===current))node.value=current;
+  else{state.requestsStudentId=null;node.value='';}
+}
+function openRequestsForStudent(studentId){
+  state.requestsStudentId=String(studentId);
+  populateRequestsStudentFilter();
+  if(el.settingsModal)el.settingsModal.classList.add('hidden');
+  if(el.requestsModal)el.requestsModal.classList.remove('hidden');
+  renderRequests();
+}
+function formatRequestCreatedAt(r){
+  return r.createdAt?new Date(r.createdAt).toLocaleString('uk-UA'):'невідомий час';
+}
+function requestTypeLabel(r){return r.type==='reschedule'?'Перенесення':'Запис';}
+function requestDetailsLabel(r){
+  return r.type==='reschedule'
+    ? 'Перенесення з '+prettyDate(r.oldDate||'')+' '+(r.oldTime||'')+' → '+prettyDate(r.date)+', '+r.time
+    : 'Запис на '+prettyDate(r.date)+', '+r.time;
+}
+function friendlyApproveError(e){
+  const msg=String(e?.message||e?.details||'').toLowerCase();
+  if(msg.includes('duplicate')||msg.includes('unique')||msg.includes('зайнят')||msg.includes('occupied')||msg.includes('конфлікт')){
+    return 'Не можна підтвердити заявку: обраний час уже зайнятий. Оновіть розклад і перевірте слот.';
+  }
+  if(msg.includes('заявку не знайдено')||msg.includes('not found')){
+    return 'Заявка вже недоступна. Оновіть список заявок.';
+  }
+  return 'Не вдалося підтвердити заявку. Оновіть розклад і спробуйте ще раз.';
+}
+function closeSlotRequestModal(){
+  if(el.slotRequestModal)el.slotRequestModal.classList.add('hidden');
+}
+async function approveFromSlot(id){
+  closeSlotRequestModal();
+  try{
+    syncStatus('saving');
+    const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});
+    if(r.error)throw r.error;
+    await loadV2();renderRequests();render();
+    toast('Заявку підтверджено.','success');
+  }catch(e){
+    console.error(e);
+    syncStatus('offline');
+    toast(friendlyApproveError(e),'error',6000);
+  }
+}
+async function rejectFromSlot(id){
+  closeSlotRequestModal();
+  await reject(id);
+}
+function openSlotRequestModal(date,requests){
+  if(!el.slotRequestModal||!el.slotRequestModalBody)return;
+  el.slotRequestModalTitle.textContent='📝 Запити на слот · '+prettyDate(date);
+  el.slotRequestModalBody.innerHTML='';
+  requests.forEach(r=>{
+    const card=document.createElement('div');card.className='slot-request-item';
+    const name=document.createElement('div');name.className='slot-request-name';name.textContent=r.studentName;
+    const type=document.createElement('div');type.className='slot-request-type';type.textContent=requestTypeLabel(r);
+    const target=document.createElement('div');target.className='slot-request-target';target.textContent=requestDetailsLabel(r);
+    const sent=document.createElement('div');sent.className='slot-request-sent';sent.textContent='Надіслано: '+formatRequestCreatedAt(r);
+    const actions=document.createElement('div');actions.className='slot-request-actions';
+    const ok=document.createElement('button');ok.type='button';ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approveFromSlot(r.id);
+    const no=document.createElement('button');no.type='button';no.className='danger';no.textContent='Відхилити';no.onclick=()=>rejectFromSlot(r.id);
+    actions.append(ok,no);
+    card.append(name,type,target,sent,actions);
+    el.slotRequestModalBody.appendChild(card);
+  });
+  el.slotRequestModal.classList.remove('hidden');
+}
+function focusRequestSlot(r){
+  state.requestsStudentId=null;
+  state.highlightedRequestSlot={date:r.date,time:r.time,requestId:r.id};
+  state.currentDate=new Date(String(r.date)+'T12:00:00');
+  state.view='day';
+  if(el.requestsModal)el.requestsModal.classList.add('hidden');
+  render();
+  setTimeout(()=>{
+    const node=document.querySelector('.request-slot-highlight');
+    if(node)node.scrollIntoView({behavior:'smooth',block:'center'});
+    state.highlightedRequestSlot=null;
+  },80);
+}
+function renderRequests(){
+  populateRequestsStudentFilter();
+  const p=state.bookingRequests.filter(x=>x.status==='pending'&&(!state.requestsStudentId||x.studentId===String(state.requestsStudentId)));
+  el.requestsList.innerHTML='';
+  if(!p.length){
+    el.requestsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">'+(state.requestsStudentId?'Для цього учня немає заявок, що очікують розгляду.':'Наразі немає нових заявок.')+'</div>';
+    return;
+  }
+  p.forEach(r=>{const s=state.students.find(x=>x.id===r.studentId),item=document.createElement('div');item.className='request-item';const row=document.createElement('div');row.className='request-row';
+    row.innerHTML=r.type==='reschedule'?'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>Перенесення: '+esc(prettyDate(r.oldDate))+' '+esc(r.oldTime||'')+' → '+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>':'<strong>'+esc(s?s.name:'Невідомий учень')+'</strong><span>'+esc(prettyDate(r.date))+', '+esc(r.time)+'</span>';
+    const a=document.createElement('div');a.className='request-actions';
+    const go=document.createElement('button');go.type='button';go.className='small-btn';go.textContent='Перейти до слота';go.title='Відкрити день і підсвітити цей слот';go.onclick=e=>{e.stopPropagation();focusRequestSlot(r);};
+    const ok=document.createElement('button');ok.className='primary';ok.textContent='Підтвердити';ok.onclick=()=>approve(r.id);const no=document.createElement('button');no.className='danger';no.textContent='Відхилити';no.onclick=()=>reject(r.id);a.append(go,ok,no);item.append(row,a);el.requestsList.appendChild(item);
+  });
+}
+async function approve(id){try{syncStatus('saving');const r=await db.rpc('v2_approve_booking_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку підтверджено.','success');}catch(e){console.error(e);syncStatus('offline');toast(friendlyApproveError(e),'error',6000);}}
+async function reject(id){const q=state.bookingRequests.find(x=>x.id===String(id));if(!q)return;const s=state.students.find(x=>x.id===q.studentId);if(!await confirmBox(q.type==='reschedule'?'Відхилити запит на перенесення від '+(s?s.name:'учня')+'?':'Відхилити заявку від '+(s?s.name:'учня')+' на '+q.date+' '+q.time+'?'))return;try{syncStatus('saving');const r=await db.rpc('v2_reject_request',{p_request_id:id});if(r.error)throw r.error;await loadV2();renderRequests();render();toast('Заявку відхилено.','info');}catch(e){dbFail(e);}}
+async function takeBackup(){if(!state.scheduleId)return;if(!await confirmBox('Створити серверний знімок поточного V2-розкладу?'))return;try{syncStatus('saving');const r=await db.rpc('v2_take_schedule_snapshot',{p_schedule_id:state.scheduleId});if(r.error)throw r.error;await loadV2();renderBackups();toast('Бекап створено на сервері.','success');}catch(e){dbFail(e);}}
+function renderBackups(){
+  el.backupsList.innerHTML='';if(!state.backups.length){el.backupsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Серверних бекапів ще немає.</div>';return;}
+  state.backups.forEach(s=>{const d=s.snapshot||{},a=Array.isArray(d.students)?d.students.length:0,b=Array.isArray(d.lessons)?d.lessons.length:0,c=Array.isArray(d.slotOverrides)?d.slotOverrides.length:0,q=Array.isArray(d.bookingRequests)?d.bookingRequests.length:0,x=document.createElement('div');x.className='backup-item';x.innerHTML='<span><strong>'+esc(new Date(s.created_at).toLocaleString('uk-UA'))+'</strong><br><small>'+a+' учнів · '+b+' уроків · '+c+' слотів · '+q+' заявок</small></span>';el.backupsList.appendChild(x);});
+}
+function renderAudit(){
+  el.auditLogList.innerHTML='';if(!state.auditLog.length){el.auditLogList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Журнал порожній.</div>';return;}
+  state.auditLog.forEach(x=>{const d=document.createElement('div');d.className='audit-item';d.innerHTML='<div>'+esc(x.action)+'</div><div class="audit-meta">'+esc(x.actor)+' · '+esc(new Date(x.ts).toLocaleString('uk-UA'))+'</div>';el.auditLogList.appendChild(d);});
+}
+function reportRange(){const p=el.reportPeriodSelect.value,t=new Date(),s=iso(t);if(p==='today')return{from:s,to:s};if(p==='week'){const a=monday(t),b=new Date(a);b.setDate(a.getDate()+6);return{from:iso(a),to:iso(b)}}if(p==='month')return{from:iso(new Date(t.getFullYear(),t.getMonth(),1)),to:iso(new Date(t.getFullYear(),t.getMonth()+1,0))};if(p==='year')return{from:iso(new Date(t.getFullYear(),0,1)),to:iso(new Date(t.getFullYear(),11,31))};if(p==='all'){if(!state.lessons.length)return{from:s,to:s};const d=state.lessons.map(x=>x.date).sort();return{from:d[0],to:d[d.length-1]};}return{from:el.reportFromDate.value||s,to:el.reportToDate.value||s};}
+function setReportSort(key){
+  if(state.reportSortKey===key)state.reportSortDir*=-1;
+  else{state.reportSortKey=key;state.reportSortDir=1;}
+  generateReport();
+}
+function reportSortIndicator(key){return state.reportSortKey===key?' '+(state.reportSortDir===1?'↑':'↓'):'';}
+function sortReportRows(rows,key,dir,getter){
+  return rows.slice().sort((a,b)=>{
+    const av=getter(a,key),bv=getter(b,key);
+    if(typeof av==='number'&&typeof bv==='number')return (av-bv)*dir;
+    return String(av).localeCompare(String(bv),'uk',{numeric:true,sensitivity:'base'})*dir;
+  });
+}
+function reportSortTh(key,label){return '<th><button type="button" onclick="setReportSort(\''+key+'\')" style="border:0;background:none;padding:0;font:inherit;font-weight:800;cursor:pointer;">'+esc(label)+reportSortIndicator(key)+'</button></th>';}
+function generateReport(){
+  const r=reportRange(),type=el.reportTypeSelect?el.reportTypeSelect.value:'completed-payment';
+  const inRange=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to);
+  const done=inRange.filter(l=>l.status==='completed'),paid=done.filter(l=>l.paid);
+  const unpaid=done.filter(l=>!l.paid),sum=paid.reduce((a,l)=>a+Number(l.paidAmount||0),0);
+  const studentName=id=>{const st=state.students.find(x=>x.id===id);return st?st.name:'Невідомий учень';};
+  const period='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>';
+  let body='';
+  if(type==='summary'){
+    const m=new Map();
+    inRange.forEach(l=>{
+      const n=studentName(l.studentId);
+      if(!m.has(n))m.set(n,{name:n,planned:0,completed:0,paid:0,sum:0});
+      const x=m.get(n);
+      if(l.status==='planned')x.planned++;
+      if(l.status==='completed'){x.completed++;if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}}
+    });
+    let rows=Array.from(m.values());
+    const allowed=['name','completed','paid','sum'];if(!allowed.includes(state.reportSortKey))state.reportSortKey='name';
+    rows=sortReportRows(rows,state.reportSortKey,state.reportSortDir,(x,k)=>x[k]);
+    const htmlRows=rows.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.planned+'</td><td>'+x.completed+'</td><td>'+x.paid+'</td><td>'+x.sum+' грн</td></tr>').join('');
+    body='<table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+'<th>Заплановано</th>'+reportSortTh('completed','Проведено')+reportSortTh('paid','Оплачено')+reportSortTh('sum','Сума')+'</tr></thead><tbody>'+(htmlRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає даних</td></tr>')+'</tbody></table>';
+  }else if(type==='planned'){
+    let rows=inRange.filter(l=>l.status==='planned').map(l=>({date:l.date,time:l.time,name:studentName(l.studentId),topic:l.topic||'-'}));
+    rows.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||a.name.localeCompare(b.name,'uk'));
+    const htmlRows=rows.map(x=>'<tr><td>'+esc(x.date)+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td></tr>').join('');
+    body='<table class="report-table"><thead><tr><th>Дата</th><th>Час</th><th>Учень</th><th>Тема</th></tr></thead><tbody>'+(htmlRows||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Немає запланованих уроків</td></tr>')+'</tbody></table>';
+  }else if(type==='payments'){
+    const m=new Map();
+    paid.forEach(l=>{const method=l.paidMethod||'Не вказано';if(!m.has(method))m.set(method,{method,count:0,sum:0});const x=m.get(method);x.count++;x.sum+=Number(l.paidAmount||0);});
+    let rows=Array.from(m.values());
+    const allowed=['method','count','sum'];if(!allowed.includes(state.reportSortKey))state.reportSortKey='sum';
+    rows=sortReportRows(rows,state.reportSortKey,state.reportSortDir,(x,k)=>x[k]);
+    const htmlRows=rows.map(x=>'<tr><td>'+esc(x.method)+'</td><td>'+x.count+'</td><td>'+x.sum+' грн</td></tr>').join('');
+    body='<table class="report-table"><thead><tr>'+reportSortTh('method','Спосіб оплати')+reportSortTh('count','Оплачених уроків')+reportSortTh('sum','Сума')+'</tr></thead><tbody>'+(htmlRows||'<tr><td colspan="3" style="text-align:center;color:var(--text-muted);">Немає оплачених уроків</td></tr>')+'</tbody></table>';
+  }else{
+    const m=new Map();
+    done.forEach(l=>{const n=studentName(l.studentId);if(!m.has(n))m.set(n,{name:n,count:0,paid:0,sum:0});const x=m.get(n);x.count++;if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}});
+    let rows=Array.from(m.values());
+    const allowed=['name','count','paid','sum'];if(!allowed.includes(state.reportSortKey))state.reportSortKey='name';
+    rows=sortReportRows(rows,state.reportSortKey,state.reportSortDir,(x,k)=>x[k]);
+    const htmlRows=rows.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.count+'</td><td>'+x.paid+'</td><td>'+x.sum+' грн</td></tr>').join('');
+    body='<table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+reportSortTh('count','Проведено')+reportSortTh('paid','Оплачено')+reportSortTh('sum','Сума')+'</tr></thead><tbody>'+(htmlRows||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">Немає даних</td></tr>')+'</tbody></table>';
+  }
+  const stats=(type==='planned')?'':('<div class="stat-cards"><div class="stat-card"><b>'+done.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено · '+sum+' грн</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div></div>');
+  el.reportOutput.innerHTML=period+stats+body;
+}
+function renderIssues(){
+  const a=[];state.lessons.forEach(l=>{if(!state.students.some(s=>s.id===l.studentId))a.push('Урок '+l.date+' '+l.time+': учня не знайдено.');if(pastDate(l.date)&&l.status==='planned')a.push('Урок '+prettyDate(l.date)+', '+l.time+': дата минула, але статус — заплановано.');if(l.status==='completed'&&!l.topic)a.push('Урок '+prettyDate(l.date)+', '+l.time+': не вказано тему.');});
+  state.students.forEach(s=>{const m=[];if(!s.grade)m.push('клас');if(!s.phone)m.push('телефон');if(!s.parentName)m.push("ім'я батьків");if(!s.parentPhone)m.push('телефон батьків');if(m.length)a.push('Учень "'+s.name+'": '+m.join(', ')+'.');});
+  el.issuesList.innerHTML=a.length?a.map(x=>'<div class="issue-item">'+esc(x)+'</div>').join(''):'<div class="issue-item ok">✓ Помилок та незаповнених полів не знайдено.</div>';
+}
+function hideContext(){el.lessonContextMenu.classList.add('hidden');state.contextLessonId=null;state.contextSlot=null;}
+function showContext(x,y,a){state.contextLessonId=a.lessonId?String(a.lessonId):null;state.contextSlot=a.dateISO&&a.hour!=null?{dateISO:a.dateISO,hour:a.hour}:null;const l=state.contextLessonId?state.lessons.find(z=>z.id===state.contextLessonId):null;el.contextMenuEdit.style.display=l?'block':'none';el.contextMenuDelete.style.display=l?'block':'none';el.contextMenuAdd.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuToggle.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuDelete.disabled=!!l&&l.status!=='planned';el.lessonContextMenu.classList.remove('hidden');const r=el.lessonContextMenu.getBoundingClientRect(),mx=Math.max(4,innerWidth-r.width-4),my=Math.max(4,innerHeight-r.height-4);el.lessonContextMenu.style.left=Math.min(Math.max(4,x),mx)+'px';el.lessonContextMenu.style.top=Math.min(Math.max(4,y),my)+'px';}
+function setupContext(){document.addEventListener('click',hideContext);document.addEventListener('scroll',hideContext,true);el.lessonContextMenu.addEventListener('click',e=>e.stopPropagation());el.contextMenuEdit.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)openEditLesson(id);};el.contextMenuDelete.onclick=()=>{const id=state.contextLessonId;hideContext();if(id)deleteLesson(id);};el.contextMenuAdd.onclick=()=>{const s=state.contextSlot;hideContext();if(s)openAddLesson(s.dateISO,s.hour);};el.contextMenuToggle.onclick=()=>{const s=state.contextSlot;hideContext();if(s)toggleSlot(s.dateISO,s.hour);};}
+function topmostOpenModal(){
+  const modals=Array.from(document.querySelectorAll('.modal:not(.hidden)'));
+  if(!modals.length)return null;
+  return modals.reduce((top,m)=>{
+    const tz=Number.parseInt(getComputedStyle(m).zIndex,10)||0;
+    const topz=Number.parseInt(getComputedStyle(top).zIndex,10)||0;
+    if(tz>topz)return m;
+    return m;
+  });
+}
+function setupModals(){
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Escape'&&e.key!=='Enter')return;
+    const m=topmostOpenModal();
+    if(!m)return;
+    const id=e.key==='Escape'?m.dataset.cancelBtn:m.dataset.confirmBtn;
+    const b=id?$(id):null;
+    if(!b)return;
+    e.preventDefault();
+    b.click();
+  });
+  document.addEventListener('click',e=>{
+    const m=e.target&&e.target.closest?e.target.closest('.modal'):null;
+    if(!m||m.classList.contains('hidden')||e.target!==m)return;
+    const id=m.dataset.cancelBtn,b=id?$(id):null;
+    if(b)b.click();
+  });
+}
+function setupUI(){
+  ensureTeacherNotificationsPanel();
+  safeBind('themeToggleBtn','onclick',()=>theme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'));
+  safeBind('settingsBtn','onclick',()=>el.settingsModal.classList.remove('hidden'));
+  safeBind('closeSettingsModalBtn','onclick',()=>el.settingsModal.classList.add('hidden'));
+  safeBind('editModeCheckbox','onchange',e=>{state.isEditMode=e.target.checked;render();});
+  safeBind('modalAddLessonBtn','onclick',()=>{el.settingsModal.classList.add('hidden');openAddLesson();});
+  safeBind('modalManageStudentsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderStudents();el.studentsModal.classList.remove('hidden');});
+  safeBind('modalRequestsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');state.requestsStudentId=null;renderRequests();el.requestsModal.classList.remove('hidden');});
+  safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
+  safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
+  safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
+  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
+  safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
+  safeBind('reportPeriodSelect','onchange',()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none');
+  safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;generateReport();});
+  safeBind('generateReportBtn','onclick',generateReport);
+  safeBind('modalIssuesBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderIssues();el.issuesModal.classList.remove('hidden');});
+  safeBind('closeIssuesModalBtn','onclick',()=>el.issuesModal.classList.add('hidden'));
+  safeBind('modalAuditLogBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');});
+  safeBind('closeAuditLogModalBtn','onclick',()=>el.auditLogModal.classList.add('hidden'));
+  safeBind('modalBackupsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderBackups();el.backupsModal.classList.remove('hidden');});
+  safeBind('closeBackupsModalBtn','onclick',()=>el.backupsModal.classList.add('hidden'));
+  safeBind('studentsInfoBtn','onclick',()=>{renderStudentsPicker();el.studentsPickerModal.classList.remove('hidden');});
+  safeBind('closeStudentsPickerModalBtn','onclick',()=>el.studentsPickerModal.classList.add('hidden'));
+  safeBind('closeStudentInfoModalBtn','onclick',()=>el.studentInfoModal.classList.add('hidden'));
+  safeBind('studentInfoHistoryBtn','onclick',()=>renderStudentCompleted(state.currentInfoStudentId));
+  safeBind('studentInfoPlannedBtn','onclick',()=>renderStudentPlanned(state.currentInfoStudentId));
+  safeBind('studentInfoCopyLinkBtn','onclick',async()=>{try{await navigator.clipboard.writeText(el.studentInfoLinkInput.value);toast('Персональне посилання скопійовано.','success');}catch(e){toast('Не вдалося скопіювати посилання.','error');}});
+  safeBind('closeStudentsModalBtn','onclick',()=>el.studentsModal.classList.add('hidden'));
+  safeBind('showActiveStudentsBtn','onclick',()=>{state.showArchivedStudents=false;renderStudents();});
+  safeBind('showArchivedStudentsBtn','onclick',()=>{state.showArchivedStudents=true;renderStudents();});
+  safeBind('lessonStudentSelect','onchange',clearLessonStudentRequired);
+  safeBind('openAddStudentModalBtn','onclick',()=>{clearStudentForm();el.studentsModal.classList.add('hidden');el.addStudentModal.classList.remove('hidden');});
+  safeBind('closeAddStudentModalBtn','onclick',()=>{el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');});
+  safeBind('saveNewStudentBtn','onclick',addStudent);
+  safeBind('lessonPaidSelect','onchange',paymentVisible);
+  safeBind('closeLessonModalBtn','onclick',()=>el.lessonModal.classList.add('hidden'));
+  safeBind('saveLessonBtn','onclick',saveLesson);
+  safeBind('deleteLessonBtn','onclick',()=>{if(state.editingLessonId)deleteLesson(state.editingLessonId);});
+  safeBind('viewDayBtn','onclick',()=>{state.view='day';render();});
+  safeBind('viewWeekBtn','onclick',()=>{state.view='week';render();});
+  safeBind('viewMonthBtn','onclick',()=>{state.view='month';render();});
+  safeBind('viewYearBtn','onclick',()=>{state.view='year';render();});
+  safeBind('filterToggleBtn','onclick',()=>{state.filterOpen=!state.filterOpen;if(el.filterPanel)el.filterPanel.classList.toggle('hidden',!state.filterOpen);});
+  safeBind('filterTypeSelect','onchange',e=>{state.filterType=e.target.value;render();});
+  safeBind('filterStudentSelect','onchange',e=>{state.filterStudentId=e.target.value;render();});
+  safeBind('todayBtn','onclick',()=>{state.currentDate=new Date();render();});
+  safeBind('prevBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()-1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()-7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()-1,1);else state.currentDate=new Date(state.currentDate.getFullYear()-1,0,1);render();});
+  safeBind('nextBtn','onclick',()=>{if(state.view==='day')state.currentDate.setDate(state.currentDate.getDate()+1);else if(state.view==='week')state.currentDate.setDate(state.currentDate.getDate()+7);else if(state.view==='month')state.currentDate=new Date(state.currentDate.getFullYear(),state.currentDate.getMonth()+1,1);else state.currentDate=new Date(state.currentDate.getFullYear()+1,0,1);render();});
+  try{if(el.modalStudentLinkBtn)el.modalStudentLinkBtn.style.display='none';}catch(e){console.error('UI setup failed: modalStudentLinkBtn',e);}
+  try{
+    if(!$('manual-backup-btn')){
+      const b=document.createElement('button');b.id='manual-backup-btn';b.type='button';b.style.cssText='width:100%;padding:12px;';b.textContent='💾 Зробити бекап';b.onclick=takeBackup;
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.insertBefore(b,el.modalBackupsBtn);else console.error('UI setup skipped: modalBackupsBtn parent missing');
+    }
+  }catch(e){console.error('UI binding failed: manual-backup-btn',e);}
+  try{
+    if(!$('logout-teacher-btn')){
+      const b=document.createElement('button');b.id='logout-teacher-btn';b.type='button';b.className='danger';b.style.cssText='width:100%;padding:12px;';b.textContent='Вийти з акаунта викладача';
+      b.onclick=async()=>{const r=await db.auth.signOut();if(r.error)dbFail(r.error);else{setVisible(false);$('teacher-auth-gate').style.display='flex';}};
+      if(el.modalBackupsBtn?.parentElement)el.modalBackupsBtn.parentElement.appendChild(b);else console.error('UI setup skipped: logout container missing');
+    }
+  }catch(e){console.error('UI binding failed: logout-teacher-btn',e);}
+}
+async function start(gate,knownUser=null){
+  const m=$('teacher-login-message');
+  try{
+    if(knownUser)state.user=knownUser;
+    await authUser(knownUser);
+    if(m)m.textContent='Авторизацію підтверджено. Завантаження розкладу...';
+    gate.style.display='none';
+    setVisible(true);
+    cache();
+    populateLessonTimeSelects();
+    theme(localStorage.getItem(THEME_KEY)||'light');
+    setupUI();
+    setupModals();
+    setupContext();
+    await loadV2();
+    try{
+      await loadTeacherNotifications();
+      if(!window.__teacherNotificationPoll){
+        window.__teacherNotificationPoll=setInterval(()=>loadTeacherNotifications().catch(e=>console.error('Notification refresh failed:',e)),30000);
+      }
+    }catch(e){console.error('Initial teacher notification load failed:',e);}
+    renderSwatches();
+    render();
+    await autoComplete();
+    render();
+  }catch(e){
+    console.error('Teacher app start failed:',e);
+    setVisible(false);
+    gate.style.display='flex';
+    const msg=e&&e.message?e.message:'Не вдалося відкрити V2-розклад.';
+    if(m)m.textContent='Вхід виконано, але розклад не вдалося завантажити: '+msg;
+  }
+}
+document.addEventListener('DOMContentLoaded',async()=>{
+  let gate;
+  try{gate=createAuthGate();setVisible(false);}catch(e){console.error('Auth gate initialization failed',e);return;}
+  const email=$('teacher-email'),password=$('teacher-password'),button=$('teacher-login-btn'),msg=$('teacher-login-message'),forgot=$('teacher-forgot-btn'),recoveryCancel=$('teacher-recovery-cancel-btn'),recoveryUpdate=$('teacher-update-password-btn');
+  async function login(){
+    if(!db){if(msg)msg.textContent='Supabase-клієнт недоступний.';return;}
+    try{
+      if(button)button.disabled=true;
+      if(msg)msg.textContent='Вхід...';
+      const r=await db.auth.signInWithPassword({
+        email:email?.value.trim()||'',
+        password:password?.value||''
+      });
+      if(r.error)throw r.error;
+      const signedInUser=r.data&&r.data.user;
+      if(!signedInUser)throw new Error('Supabase не повернув користувача після входу.');
+      state.user=signedInUser;
+      if(msg)msg.textContent='Авторизацію успішно виконано. Завантаження розкладу...';
+      await start(gate,signedInUser);
+    }catch(e){
+      console.error('Teacher login failed:',e);
+      if(msg)msg.textContent=e.message||'Не вдалося увійти.';
+    }finally{
+      if(button)button.disabled=false;
+    }
+  }
+  safeDomBind('teacher-login-btn','onclick',login);
+  safeDomBind('teacher-forgot-btn','onclick',()=>requestPasswordRecovery());
+  safeDomBind('teacher-recovery-cancel-btn','onclick',()=>{window.history.replaceState({},document.title,window.location.pathname);showLoginPanel(gate);});
+  safeDomBind('teacher-update-password-btn','onclick',()=>updateRecoveredPassword(gate));
+  [email,password].forEach((node,i)=>safeAddEventListener(node,'keydown',e=>{if(e.key==='Enter')login();},i===0?'teacher-email':'teacher-password'));
+  try{
+    if(db){
+      db.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')showRecoveryPanel(gate);});
+      if(isRecoveryRedirect())showRecoveryPanel(gate);
+      else{const r=await db.auth.getSession();if(r.error)console.error(r.error);if(r.data&&r.data.session&&r.data.session.user)await start(gate);}
+    }
+  }catch(e){console.error('Auth bootstrap failed',e);}
+});
+:'')+(l.status==='completed'?' ✓':'')+'</span>';if(isFullyCompletedLesson(l)){const titleSpan=b.querySelector('span');if(titleSpan){titleSpan.style.fontWeight='900';titleSpan.style.fontSize='calc(1em * var(--fully-completed-font-scale))';}}b.onclick=e=>{e.stopPropagation();openEditLesson(l.id);};const sourceRequests=pendingRescheduleRequestsForSourceLesson(l);if(sourceRequests.length)attachPendingRequestInfo(b,sourceRequests,'source',l.date);c.appendChild(b);});
     el.calendarGrid.appendChild(c);
   }
   const cells=start+total;for(let i=cells;i<Math.ceil(cells/7)*7;i++){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(i-cells+1)+'</div>';el.calendarGrid.appendChild(x);}
