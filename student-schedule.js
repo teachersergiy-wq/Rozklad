@@ -416,10 +416,14 @@ function renderCalendarMonth(){
   for(let day=1;day<=total;day++){
     const date=iso(new Date(y,m,day)),cell=document.createElement('div');cell.className='calendar-month-cell';
     const dayLessons=state.ownLessons.filter(l=>l.date===date);
+    const hasRescheduleSource=dayLessons.some(l=>pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10)));
+    const hasRescheduleTarget=state.pendingRequests.some(r=>r.type==='reschedule'&&r.date===date);
     if(dayLessons.length){
       cell.style.background='color-mix(in srgb, var(--accent) 14%, var(--surface))';
       cell.style.borderColor='color-mix(in srgb, var(--accent) 45%, var(--border))';
     }
+    if(hasRescheduleSource)cell.classList.add('reschedule-source-day');
+    if(hasRescheduleTarget)cell.classList.add('reschedule-target-day');
     cell.classList.add('calendar-month-cell-clickable');
     cell.title='Відкрити тиждень з цим днем';
     cell.onclick=async(e)=>{
@@ -440,7 +444,19 @@ function renderCalendarMonth(){
       cell.appendChild(h);
     }
     state.ownLessons.filter(l=>l.date===date).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{
-      const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson';b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(l.status==='completed'?'Проведено':'Заплановано')+'</small>';b.onclick=(e)=>{e.stopPropagation();showLesson(l);};cell.appendChild(b);
+      const sourceRequest=pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10));
+      const b=document.createElement('button');b.type='button';b.className='calendar-month-lesson'+(sourceRequest?' reschedule-source':'');
+      b.innerHTML='<span>'+esc(l.time)+' '+esc(l.topic||'')+'</span><small>'+esc(sourceRequest?'↩ Перенесення із цього слоту':l.status==='completed'?'Проведено':'Заплановано')+'</small>';
+      b.title=sourceRequest
+        ? 'Є pending-запит на перенесення з цього слоту → '+prettyDate(sourceRequest.date)+', '+sourceRequest.time
+        : 'Відкрити деталі уроку';
+      b.onclick=(e)=>{e.stopPropagation();showLesson(l);};cell.appendChild(b);
+    });
+    state.pendingRequests.filter(r=>r.type==='reschedule'&&r.date===date).sort((a,b)=>String(a.time).localeCompare(String(b.time))).forEach(r=>{
+      const target=document.createElement('div');target.className='calendar-month-reschedule-target';
+      target.innerHTML='<span>↪ '+esc(r.time)+'</span><small>Очікує перенесення сюди</small>';
+      target.title='Цільовий слот pending-запиту на перенесення з '+prettyDate(r.oldDate||'')+', '+(r.oldTime||'');
+      cell.appendChild(target);
     });
     host.appendChild(cell);
   }
@@ -459,11 +475,16 @@ function renderCalendarYear(){
     for(let i=0;i<start;i++){const e=document.createElement('div');e.className='calendar-year-day empty';grid.appendChild(e);}
     for(let day=1;day<=total;day++){
       const date=iso(new Date(y,m,day)),lessons=state.ownLessons.filter(l=>l.date===date),completed=lessons.filter(l=>l.status==='completed').length,planned=lessons.filter(l=>l.status==='planned').length;
-      const cell=document.createElement('button');cell.type='button';cell.className='calendar-year-day';
+      const hasRescheduleSource=lessons.some(l=>pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10)));
+      const hasRescheduleTarget=state.pendingRequests.some(r=>r.type==='reschedule'&&r.date===date);
+      const cell=document.createElement('button');cell.type='button';cell.className='calendar-year-day'+(hasRescheduleSource?' reschedule-source-day':'')+(hasRescheduleTarget?' reschedule-target-day':'');
       if(lessons.length){
         cell.style.background='color-mix(in srgb, var(--accent) 14%, var(--surface-alt))';
         cell.style.borderColor='color-mix(in srgb, var(--accent) 45%, var(--border))';
-      }cell.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,day);await loadStudentSchedule();render();};
+      }
+      if(hasRescheduleSource)cell.title='Є pending-запит на перенесення з уроку цього дня';
+      else if(hasRescheduleTarget)cell.title='Є pending-запит на перенесення на цей день';
+      cell.onclick=async()=>{state.view='month';state.currentDate=new Date(y,m,day);await loadStudentSchedule();render();};
       const n=document.createElement('span');n.className='calendar-year-day-num';n.textContent=day;cell.appendChild(n);
       const counts=document.createElement('span');counts.className='calendar-year-counts';
       if(completed){const q=document.createElement('span');q.className='completed';q.textContent=completed;counts.appendChild(q);}
@@ -505,6 +526,14 @@ function busy(date,h){return state.busySlots.some(x=>x.date===date&&x.time===tim
 function ownLesson(date,h){return state.ownLessons.find(x=>x.date===date&&parseInt(x.time.split(':')[0],10)===h)||null;}
 function pendingBooking(date,h){return state.pendingRequests.find(x=>x.type==='booking'&&x.date===date&&x.time===time(h))||null;}
 function pendingReschedule(lessonId){return state.pendingRequests.find(x=>x.type==='reschedule'&&String(x.lessonId)===String(lessonId))||null;}
+function pendingRescheduleTarget(date,h){
+  const t=time(h);
+  return state.pendingRequests.find(x=>x.type==='reschedule'&&x.date===date&&x.time===t)||null;
+}
+function pendingRescheduleSource(date,h){
+  const t=time(h);
+  return state.pendingRequests.find(x=>x.type==='reschedule'&&x.oldDate===date&&x.oldTime===t)||null;
+}
 
 function pendingTarget(date,h){
   const t=time(h);
@@ -528,6 +557,8 @@ function dayEntries(date){
     const own=ownLesson(date,h);
     if(own){flush();out.push({type:'lesson',hour:h,lesson:own});continue;}
     if(state.archived){flush();continue;}
+    const rt=pendingRescheduleTarget(date,h);
+    if(rt){flush();out.push({type:'reschedule-target',hour:h,request:rt});continue;}
     const pr=pendingBooking(date,h);
     if(pr){flush();out.push({type:'pending',hour:h});continue;}
     if(isOpen(date,h)){run.push(h);continue;}
@@ -780,6 +811,13 @@ function renderWeek(){
     }
     entries.forEach(x=>{
       if(x.type==='lesson'){renderOwnLesson(col,x.lesson);return;}
+      if(x.type==='reschedule-target'){
+        const p=document.createElement('div');p.className='slot-reschedule-target';
+        p.innerHTML='<div class="slot-reschedule-target-time">'+esc(time(x.hour))+'</div><div class="slot-reschedule-target-label">↪ Очікує перенесення сюди</div>';
+        p.title='Цільовий слот вашого pending-запиту на перенесення з '+prettyDate(x.request.oldDate||'')+', '+(x.request.oldTime||'');
+        col.appendChild(p);
+        return;
+      }
       if(x.type==='pending'){const p=document.createElement('div');p.className='slot-pending';p.textContent=time(x.hour)+' Очікує підтвердження';col.appendChild(p);return;}
       const f=document.createElement('div');f.className='slot-free'+(state.student&&!state.archived?' bookable':'');
       const label=document.createElement('div');label.className='slot-free-label';label.textContent=rangeLabel(x)+' Вільно';f.appendChild(label);
@@ -797,13 +835,21 @@ function renderWeek(){
 
 function renderOwnLesson(col,l){
   const pending=state.archived?null:pendingReschedule(l.id),isCompleted=l.status==='completed',isPaid=l.paid;
-  const x=document.createElement('div');x.className='slot-lesson '+(pending?'pending-reschedule':(isCompleted?'completed':'planned'));
+  const sourceRequest=state.archived?null:pendingRescheduleSource(l.date,parseInt(String(l.time).split(':')[0],10));
+  const x=document.createElement('div');x.className='slot-lesson '+(pending||sourceRequest?'pending-reschedule-source':(isCompleted?'completed':'planned'));
   const t=document.createElement('div');t.className='slot-lesson-time';t.textContent=l.time;x.appendChild(t);
   const n=document.createElement('div');n.className='slot-lesson-student';n.textContent=state.student.name;x.appendChild(n);
   if(l.topic){const q=document.createElement('div');q.className='slot-lesson-topic';q.textContent=l.topic;x.appendChild(q);}
   const b=document.createElement('div');b.className='slot-lesson-badges';
-  const s=document.createElement('span');s.className='mini-badge '+(isCompleted?'status-completed':'status-planned');s.textContent=pending?'⏳ Перенесення':(isCompleted?'Проведено':'Заплановано');b.appendChild(s);
+  const s=document.createElement('span');s.className='mini-badge '+(isCompleted?'status-completed':'status-planned');s.textContent=(pending||sourceRequest)?'↩ Очікує перенесення':(isCompleted?'Проведено':'Заплановано');b.appendChild(s);
   const p=document.createElement('span');p.className='mini-badge '+(isPaid?'paid-yes':'paid-no');p.textContent=isPaid?'Оплачено':'Не опл.';b.appendChild(p);x.appendChild(b);
+  if(sourceRequest){
+    x.title='Pending-запит на перенесення: '+prettyDate(sourceRequest.oldDate||l.date)+', '+(sourceRequest.oldTime||l.time)+' → '+prettyDate(sourceRequest.date)+', '+sourceRequest.time;
+  }else if(pending){
+    x.title='Pending-запит на перенесення цього уроку';
+  }else{
+    x.title='Відкрити деталі уроку';
+  }
   x.onclick=()=>showLesson(l);col.appendChild(x);
 }
 
