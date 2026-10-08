@@ -86,6 +86,7 @@ function applyTheme(v){document.documentElement.setAttribute('data-theme',v);els
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function prettyDate(s){const p=String(s).split('-').map(Number);if(!p[0])return s||'';return new Date(p[0],p[1]-1,p[2]).toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'});}
 function weekdayShort(s){const p=String(s).split('-').map(Number);if(!p[0])return '';return ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(p[0],p[1]-1,p[2]).getDay()];}
+function requestCreatedAtLabel(ts){return ts?new Date(ts).toLocaleString('uk-UA'):'час невідомий';}
 function lessonListDateTime(s,t){return prettyDate(s).replace(/\sр\.$/,'р.')+' ('+weekdayShort(s)+') - '+t;}
 function monday(d){const x=new Date(d),day=x.getDay();x.setDate(x.getDate()-day+(day===0?-6:1));x.setHours(0,0,0,0);return x;}
 function time(h){return String(h).padStart(2,'0')+':00';}
@@ -115,8 +116,9 @@ async function loadStudentSchedule(){
   state.closedOverrides=Array.isArray(r.data.closedOverrides)?r.data.closedOverrides.map(x=>({date:String(x.date),time:String(x.time).slice(0,5)})):[];
   state.pendingRequests=Array.isArray(r.data.myPendingRequests)?r.data.myPendingRequests.map(x=>({
     id:String(x.id),type:x.type,lessonId:x.lessonId?String(x.lessonId):null,date:String(x.date),time:String(x.time).slice(0,5),
-    oldDate:x.oldDate||null,oldTime:x.oldTime?String(x.oldTime).slice(0,5):null
+    oldDate:x.oldDate||null,oldTime:x.oldTime?String(x.oldTime).slice(0,5):null,createdAt:x.createdAt||x.created_at||null
   })):[];
+
   try{
     await loadPlannedHistory(true);
   }catch(e){
@@ -700,7 +702,7 @@ function renderPendingRequests(){
     title.textContent=r.type==='reschedule'
       ? 'Перенесення: '+prettyDate(r.oldDate||'')+', '+(r.oldTime||'')+' → '+prettyDate(r.date)+', '+r.time
       : 'Запис: '+prettyDate(r.date)+', '+r.time;
-    const meta=document.createElement('div');meta.className='pending-request-meta';meta.textContent='Очікує рішення викладача';
+    const meta=document.createElement('div');meta.className='pending-request-meta';meta.textContent='Створено: '+requestCreatedAtLabel(r.createdAt)+' · Очікує рішення викладача';
     info.append(title,meta);
     const cancel=document.createElement('button');cancel.type='button';cancel.className='pending-request-cancel';cancel.textContent='Відкликати';cancel.title='Відкликати цей запит';cancel.onclick=()=>cancelStudentRequest(r);
     item.append(info,cancel);
