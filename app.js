@@ -460,7 +460,7 @@ function lessonCard(l){
   const st=document.createElement('span');st.className='badge';st.style.backgroundColor=l.status==='completed'?'#e2e8f0':'#dbeafe';st.style.color=l.status==='completed'?'#334155':'#1d4ed8';st.textContent=l.status==='completed'?'Відбувся':'Заплан.';b.append(p,st);c.append(row,b);
   const sourceRequests=pendingRescheduleRequestsForSourceLesson(l);
   if(sourceRequests.length)attachPendingRequestInfo(c,sourceRequests,'source',l.date);
-  c.onclick=()=>openEditLesson(l.id);c.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showContext(e.clientX,e.clientY,{lessonId:l.id});};
+  c.onclick=()=>sourceRequests.length?openSlotRequestModal(l.date,sourceRequests):openEditLesson(l.id);c.oncontextmenu=e=>{e.preventDefault();e.stopPropagation();showContext(e.clientX,e.clientY,{lessonId:l.id});};
   if(c.draggable)c.ondragstart=e=>e.dataTransfer.setData('text/plain',l.id);return c;
 }
 function renderColumns(days){
@@ -492,7 +492,7 @@ function renderMonth(){
       render();
     };
     const n=document.createElement('div');n.className='month-day-num '+(today(d)?'today-num':'');n.textContent=day;c.appendChild(n);
-    state.lessons.filter(l=>l.date===date&&match(l)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{const s=state.students.find(q=>q.id===l.studentId),b=document.createElement('div');b.className='month-lesson-badge';b.style.backgroundColor=s?s.color:COLORS[0];b.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-weight:600;">'+esc(l.time)+' '+esc(s?s.name:'')+'</span><span>'+(l.paid?'$':'')+(l.status==='completed'?' ✓':'')+'</span>';if(isFullyCompletedLesson(l)){const titleSpan=b.querySelector('span');if(titleSpan){titleSpan.style.fontWeight='900';titleSpan.style.fontSize='calc(1em * var(--fully-completed-font-scale))';}}b.onclick=e=>{e.stopPropagation();openEditLesson(l.id);};const sourceRequests=pendingRescheduleRequestsForSourceLesson(l);if(sourceRequests.length)attachPendingRequestInfo(b,sourceRequests,'source',l.date);c.appendChild(b);});
+    state.lessons.filter(l=>l.date===date&&match(l)).sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(l=>{const s=state.students.find(q=>q.id===l.studentId),b=document.createElement('div');b.className='month-lesson-badge';b.style.backgroundColor=s?s.color:COLORS[0];b.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b;font-weight:600;">'+esc(l.time)+' '+esc(s?s.name:'')+'</span><span>'+(l.paid?'$':'')+(l.status==='completed'?' ✓':'')+'</span>';if(isFullyCompletedLesson(l)){const titleSpan=b.querySelector('span');if(titleSpan){titleSpan.style.fontWeight='900';titleSpan.style.fontSize='calc(1em * var(--fully-completed-font-scale))';}}const sourceRequests=pendingRescheduleRequestsForSourceLesson(l);if(sourceRequests.length)attachPendingRequestInfo(b,sourceRequests,'source',l.date);b.onclick=e=>{e.stopPropagation();if(sourceRequests.length){openSlotRequestModal(l.date,sourceRequests);return;}openEditLesson(l.id);};c.appendChild(b);});
     el.calendarGrid.appendChild(c);
   }
   const cells=start+total;for(let i=cells;i<Math.ceil(cells/7)*7;i++){const x=document.createElement('div');x.className='month-cell padding-cell';x.innerHTML='<div class="month-day-num muted">'+(i-cells+1)+'</div>';el.calendarGrid.appendChild(x);}
