@@ -263,17 +263,21 @@ function studentPaymentText(l,includeMethod=false){
   return 'Оплачено'+(l.paidAmount!=null?' · '+l.paidAmount+' грн':'')+(includeMethod&&l.paidMethod?' · '+l.paidMethod:'');
 }
 
+function buildAbsoluteLessonNumberMap(){
+  const all=[...(state.completedHistory||[]),...(state.plannedHistory||[])];
+  const chronological=all.slice().sort((a,b)=>{
+    const byDateTime=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+    if(byDateTime!==0)return byDateTime;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  return new Map(chronological.map((lesson,index)=>[String(lesson.id),index+1]));
+}
 function renderCompletedHistory(){
   const host=$('completed-lessons-list');
   const count=$('completed-lessons-count');
   if(!host)return;
   const rows=(state.completedHistory||[]).slice().sort((a,b)=>(b.date+' '+b.time).localeCompare(a.date+' '+a.time));
-  const chronological=rows.slice().sort((a,b)=>{
-    const byDateTime=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
-    if(byDateTime!==0)return byDateTime;
-    return String(a.id).localeCompare(String(b.id));
-  });
-  const absoluteNumberById=new Map(chronological.map((lesson,index)=>[String(lesson.id),index+1]));
+  const absoluteNumberById=buildAbsoluteLessonNumberMap();
   if(count)count.textContent='Усього проведено: '+rows.length;
   renderDebtNotice();
 
@@ -317,8 +321,11 @@ function renderPlannedHistory(){
   const host=$('planned-lessons-list');
   const count=$('planned-lessons-count');
   if(!host)return;
-  const rows=(state.plannedHistory||[]).slice();
-  const absoluteNumberById=new Map(rows.map((lesson,index)=>[String(lesson.id),index+1]));
+  const rows=(state.plannedHistory||[]).slice().sort((a,b)=>{
+    const dt=(a.date+' '+a.time).localeCompare(b.date+' '+b.time);
+    return dt!==0?dt:String(a.id).localeCompare(String(b.id));
+  });
+  const absoluteNumberById=buildAbsoluteLessonNumberMap();
   if(count)count.textContent='Усього заплановано: '+rows.length;
   host.innerHTML='';
   if(state.plannedHistoryLoading&&!state.plannedHistoryLoaded){
