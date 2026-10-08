@@ -1,0 +1,93 @@
+name: V2 daily backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily at 02:10 UTC.
+    - cron: "10 2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v2-daily-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      TEACHER_EMAIL: ${{ secrets.TEACHER_EMAIL }}
+      TEACHER_PASSWORD: ${{ secrets.TEACHER_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_URL SUPABASE_ANON_KEY TEACHER_EMAIL TEACHER_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub Secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate teacher
+        shell: bash
+        run: |
+          set -euo pipefail
+          AUTH_JSON="$(mktemp)"
+          trap 'rm -f "$AUTH_JSON"' EXIT
+
+          curl --fail-with-body --silent --show-error \
+            -X POST "${SUPABASE_URL%/}/auth/v1/token?grant_type=password" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary "$(jq -nc \
+              --arg email "$TEACHER_EMAIL" \
+              --arg password "$TEACHER_PASSWORD" \
+              '{email:$email,password:$password}')" \
+            > "$AUTH_JSON"
+
+          ACCESS_TOKEN="$(jq -er '.access_token' "$AUTH_JSON")"
+          echo "::add-mask::$ACCESS_TOKEN"
+          printf 'SUPABASE_ACCESS_TOKEN=%s\n' "$ACCESS_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Export V2 JSON backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          BACKUP_FILE="backups/v2-backup-$(date -u +'%Y-%m-%dT%H-%M-%SZ').json"
+
+          curl --fail-with-body --silent --show-error \
+            -X POST "${SUPABASE_URL%/}/rest/v1/rpc/v2_export_full_backup" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{}' \
+            -o "$BACKUP_FILE"
+
+          jq -e 'type == "object" and (.format_version == 1) and (.students | type == "array") and (.lessons | type == "array")' "$BACKUP_FILE" >/dev/null
+          echo "Created $BACKUP_FILE"
+
+      - name: Commit backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backups/
+          if git diff --cached --quiet; then
+            echo "No backup changes to commit."
+            exit 0
+          fi
+          git commit -m "backup: daily V2 schedule snapshot"
+          git push
