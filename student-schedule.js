@@ -88,6 +88,35 @@ function prettyDate(s){const p=String(s).split('-').map(Number);if(!p[0])return 
 function weekdayShort(s){const p=String(s).split('-').map(Number);if(!p[0])return '';return ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(p[0],p[1]-1,p[2]).getDay()];}
 function requestCreatedAtLabel(ts){return ts?new Date(ts).toLocaleString('uk-UA'):'час невідомий';}
 function lessonListDateTime(s,t){return prettyDate(s).replace(/\sр\.$/,'р.')+' ('+weekdayShort(s)+') - '+t;}
+
+let aliasRedirectAttempted = false;
+const ALIAS_REDIRECT_STARTED = 'TOKEN_ALIAS_REDIRECT_STARTED';
+
+function isStaleStudentTokenError(error){
+  return /Невірне або застаріле посилання/i.test(String(error&&error.message||error||''));
+}
+
+async function redirectViaTokenAlias(error){
+  if(aliasRedirectAttempted||!isStaleStudentTokenError(error)||!db||!state.token)return false;
+  aliasRedirectAttempted=true;
+  let timeoutId;
+  try{
+    const result=await Promise.race([
+      db.rpc('v2_resolve_token_alias',{p_old_token:state.token}),
+      new Promise((_,reject)=>{timeoutId=setTimeout(()=>reject(new Error('Alias resolver timeout')),4000);})
+    ]);
+    if(result.error||typeof result.data!=='string'||!result.data||result.data===state.token)return false;
+    const url=new URL(window.location.href);
+    url.searchParams.set('token',result.data);
+    window.location.replace(url.toString());
+    return true;
+  }catch(e){
+    console.warn('Student token alias resolution failed:',e);
+    return false;
+  }finally{
+    if(timeoutId)clearTimeout(timeoutId);
+  }
+}
 function monday(d){const x=new Date(d),day=x.getDay();x.setDate(x.getDate()-day+(day===0?-6:1));x.setHours(0,0,0,0);return x;}
 function time(h){return String(h).padStart(2,'0')+':00';}
 function pastSlot(date,h){const p=date.split('-').map(Number);return new Date(p[0],p[1]-1,p[2],h,0,0).getTime()<Date.now();}
@@ -101,8 +130,15 @@ async function loadStudentSchedule(){
   const r=await db.rpc('v2_get_student_schedule',{
     p_token:state.token,p_from:iso(range.from),p_to:iso(range.to)
   });
-  if(r.error)throw r.error;
-  if(!r.data||!r.data.student)throw new Error('Невірне або застаріле персональне посилання.');
+  if(r.error){
+    if(await redirectViaTokenAlias(r.error))throw new Error(ALIAS_REDIRECT_STARTED);
+    throw r.error;
+  }
+  if(!r.data||!r.data.student){
+    const staleError=new Error('Невірне або застаріле посилання');
+    if(await redirectViaTokenAlias(staleError))throw new Error(ALIAS_REDIRECT_STARTED);
+    throw new Error('Невірне або застаріле персональне посилання.');
+  }
 
   state.student=Object.assign({},r.data.student,{hidePaymentAmount:!!r.data.student.hidePaymentAmount});
   state.archived=!!r.data.student.archived;
@@ -1089,6 +1125,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     render();
     loadCompletedHistory(false).catch(e=>console.error('Initial completed history load failed:',e));
   }catch(e){
+    if(e&&e.message===ALIAS_REDIRECT_STARTED)return;
     console.error(e);
     els.pageTitle.textContent='❗ Посилання недійсне';
     els.pageSubtitle.textContent=e.message||'Зверніться до викладача за новим персональним посиланням.';
