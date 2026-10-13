@@ -843,6 +843,7 @@ function generateMathemaReport(){
   const r=mathemaReportRange();
   const studentById=new Map(state.students.filter(st=>st.cooperationPlatform==='Mathema').map(st=>[st.id,st]));
   const rows=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to&&l.status==='completed'&&studentById.has(l.studentId));
+  const plannedRows=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to&&l.status==='planned'&&studentById.has(l.studentId));
   const nameFor=id=>studentById.get(id)?.name||'Невідомий учень';
   const paid=rows.filter(l=>l.paid);
   const unpaid=rows.filter(l=>!l.paid);
@@ -864,7 +865,7 @@ function generateMathemaReport(){
   details=sortReportRows(details,state.mathemaDetailSortKey,state.mathemaDetailSortDir,(x,k)=>x[k]);
   const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(x.paid?'Оплачено'+(x.amount?' · '+x.amount+' грн':''):'Не оплачено')+'</td></tr>').join('');
   const detail='<h3 style="margin:18px 0 6px;">Деталізація проведених уроків</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+mathemaDetailSortTh('date','Дата')+mathemaDetailSortTh('time','Час')+mathemaDetailSortTh('name','Учень')+mathemaDetailSortTh('topic','Тема')+mathemaDetailSortTh('paid','Оплата')+'</tr></thead><tbody>'+(detailRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає уроків</td></tr>')+'</tbody></table></div>';
-  const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div><div class="stat-card"><b>'+sum+' грн</b><span>Сума оплат</span></div></div>';
+  const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+plannedRows.length+'</b><span>Заплановано</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div><div class="stat-card"><b>'+sum+' грн</b><span>Сума оплат</span></div></div>';
   el.reportOutput.innerHTML='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
 }
 function reportRange(){
