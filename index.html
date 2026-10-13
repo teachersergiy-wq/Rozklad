@@ -297,7 +297,7 @@
     /* Landscape на мобільних: місячна сітка використовує всю ширину viewport */
 
     /* HDR-1: однорядкова шапка для ПК; мобільні режими залишаються окремо. */
-    @media (min-width: 1001px) {
+    @media (min-width: 1200px) {
       .header {
         flex-direction: row;
         flex-wrap: wrap;
@@ -409,7 +409,7 @@
       }
     }
 
-    @media (min-width: 641px) and (max-width: 1000px) and (orientation: landscape) {
+    @media (min-width: 641px) and (max-width: 1199px) and (orientation: landscape) {
       body:has(#calendar-grid.grid-month) .header {
         display:grid;
         grid-template-columns:auto minmax(170px,1fr) auto auto;
