@@ -1124,6 +1124,7 @@ async function start(gate,knownUser=null){
     render();
     await autoComplete();
     render();
+    window.requestAnimationFrame(logHeaderLayoutDiagnostic);
   }catch(e){
     console.error('Teacher app start failed:',e);
     setVisible(false);
@@ -1142,6 +1143,7 @@ function logHeaderLayoutDiagnostic(){
   console.info('[HDR-3] window.innerWidth='+window.innerWidth+' CSS px; headerRows='+rowCount+'; groupTops='+tops.join(','));
 }
 window.addEventListener('resize',()=>window.requestAnimationFrame(logHeaderLayoutDiagnostic),{passive:true});
+document.addEventListener('DOMContentLoaded',()=>window.requestAnimationFrame(logHeaderLayoutDiagnostic),{once:true});
 
 document.addEventListener('DOMContentLoaded',async()=>{
   let gate;
