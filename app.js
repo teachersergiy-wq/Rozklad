@@ -12,7 +12,7 @@ const AUTO_COMPLETE_MS=48*60*60*1000, MAX_AUDIT=300, THEME_KEY='schedule_theme_p
 
 const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
-  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,
+  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
   selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,highlightedRequestSlot:null
 };
@@ -20,7 +20,7 @@ let el={};
 
 function $(id){return document.getElementById(id);}
 function cache(){
-  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-period-select report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list requests-student-filter close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
+  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-type-select report-period-select report-standard-period-group mathema-report-navigation mathema-report-period-label mathema-report-prev-btn mathema-report-next-btn mathema-report-today-btn report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list requests-student-filter close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
@@ -799,7 +799,84 @@ function renderAudit(){
   el.auditLogList.innerHTML='';if(!state.auditLog.length){el.auditLogList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">Журнал порожній.</div>';return;}
   state.auditLog.forEach(x=>{const d=document.createElement('div');d.className='audit-item';d.innerHTML='<div>'+esc(x.action)+'</div><div class="audit-meta">'+esc(x.actor)+' · '+esc(new Date(x.ts).toLocaleString('uk-UA'))+'</div>';el.auditLogList.appendChild(d);});
 }
-function reportRange(){const p=el.reportPeriodSelect.value,t=new Date(),s=iso(t);if(p==='today')return{from:s,to:s};if(p==='week'){const a=monday(t),b=new Date(a);b.setDate(a.getDate()+6);return{from:iso(a),to:iso(b)}}if(p==='month')return{from:iso(new Date(t.getFullYear(),t.getMonth(),1)),to:iso(new Date(t.getFullYear(),t.getMonth()+1,0))};if(p==='year')return{from:iso(new Date(t.getFullYear(),0,1)),to:iso(new Date(t.getFullYear(),11,31))};if(p==='all'){if(!state.lessons.length)return{from:s,to:s};const d=state.lessons.map(x=>x.date).sort();return{from:d[0],to:d[d.length-1]};}return{from:el.reportFromDate.value||s,to:el.reportToDate.value||s};}
+function mathemaOffsetForDate(date){
+  const anchor=new Date(2026,8,28);anchor.setHours(0,0,0,0);
+  const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setHours(0,0,0,0);
+  const calendarDays=Math.round((d.getTime()-anchor.getTime())/86400000);
+  return Math.floor(calendarDays/14);
+}
+function currentMathemaOffset(){
+  if(Number.isInteger(state.mathemaPeriodOffset))return state.mathemaPeriodOffset;
+  return mathemaOffsetForDate(new Date());
+}
+function mathemaReportRange(){
+  const offset=currentMathemaOffset();
+  state.mathemaPeriodOffset=offset;
+  const start=new Date(2026,8,28);start.setDate(start.getDate()+14*offset);
+  const end=new Date(start);end.setDate(end.getDate()+13);
+  return {from:iso(start),to:iso(end),offset};
+}
+function updateMathemaPeriodLabel(){
+  if(!el.mathemaReportPeriodLabel)return;
+  const r=mathemaReportRange();
+  el.mathemaReportPeriodLabel.textContent=prettyDate(r.from)+' — '+prettyDate(r.to);
+  el.mathemaReportPeriodLabel.title=el.mathemaReportPeriodLabel.textContent;
+}
+function updateReportTypeUI(){
+  const isMathema=!!(el.reportTypeSelect&&el.reportTypeSelect.value==='mathema');
+  if(el.reportStandardPeriodGroup)el.reportStandardPeriodGroup.style.display=isMathema?'none':'';
+  if(el.reportCustomRange)el.reportCustomRange.style.display=!isMathema&&el.reportPeriodSelect&&el.reportPeriodSelect.value==='custom'?'flex':'none';
+  if(el.mathemaReportNavigation)el.mathemaReportNavigation.style.display=isMathema?'flex':'none';
+  if(el.generateReportBtn)el.generateReportBtn.style.display=isMathema?'none':'block';
+  if(isMathema)updateMathemaPeriodLabel();
+}
+function setMathemaDetailSort(key){
+  if(state.mathemaDetailSortKey===key)state.mathemaDetailSortDir*=-1;
+  else{state.mathemaDetailSortKey=key;state.mathemaDetailSortDir=1;}
+  generateReport();
+}
+function mathemaDetailSortTh(key,label){
+  const mark=state.mathemaDetailSortKey===key?(state.mathemaDetailSortDir===1?' ↑':' ↓'):'';
+  return '<th><button type="button" onclick="setMathemaDetailSort(&quot;'+key+'&quot;)" style="border:0;background:none;padding:0;font:inherit;font-weight:800;cursor:pointer;">'+esc(label+mark)+'</button></th>';
+}
+function generateMathemaReport(){
+  const r=mathemaReportRange();
+  const studentById=new Map(state.students.filter(st=>st.cooperationPlatform==='Mathema').map(st=>[st.id,st]));
+  const rows=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to&&l.status==='completed'&&studentById.has(l.studentId));
+  const nameFor=id=>studentById.get(id)?.name||'Невідомий учень';
+  const paid=rows.filter(l=>l.paid);
+  const unpaid=rows.filter(l=>!l.paid);
+  const sum=paid.reduce((total,l)=>total+Number(l.paidAmount||0),0);
+  const byStudent=new Map();
+  rows.forEach(l=>{
+    if(!byStudent.has(l.studentId))byStudent.set(l.studentId,{studentId:l.studentId,name:nameFor(l.studentId),completed:0,paid:0,unpaid:0,sum:0});
+    const x=byStudent.get(l.studentId);x.completed++;
+    if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}else x.unpaid++;
+  });
+  const allowed=['name','completed','paid','unpaid','sum'];
+  if(!allowed.includes(state.reportSortKey))state.reportSortKey='name';
+  const students=sortReportRows(Array.from(byStudent.values()),state.reportSortKey,state.reportSortDir,(x,k)=>x[k]);
+  const studentRows=students.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.completed+'</td><td>'+x.paid+'</td><td>'+x.unpaid+'</td><td>'+x.sum+' грн</td></tr>').join('');
+  const summary='<h3 style="margin:12px 0 6px;">Підсумок по учнях</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+reportSortTh('completed','Проведено')+reportSortTh('paid','Оплачено')+reportSortTh('unpaid','Не оплачено')+reportSortTh('sum','Сума оплат')+'</tr></thead><tbody>'+(studentRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає проведених уроків за цей період</td></tr>')+'<tr class="report-total-row"><th>Усього</th><th>'+rows.length+'</th><th>'+paid.length+'</th><th>'+unpaid.length+'</th><th>'+sum+' грн</th></tr></tbody></table></div>';
+  let details=rows.map(l=>({date:l.date,time:l.time,name:nameFor(l.studentId),topic:l.topic||'—',paid:l.paid?1:0,amount:Number(l.paidAmount||0)}));
+  const detailKeys=['date','time','name','topic','paid'];
+  if(!detailKeys.includes(state.mathemaDetailSortKey))state.mathemaDetailSortKey='date';
+  details=sortReportRows(details,state.mathemaDetailSortKey,state.mathemaDetailSortDir,(x,k)=>x[k]);
+  const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(x.paid?'Оплачено'+(x.amount?' · '+x.amount+' грн':''):'Не оплачено')+'</td></tr>').join('');
+  const detail='<h3 style="margin:18px 0 6px;">Деталізація проведених уроків</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+mathemaDetailSortTh('date','Дата')+mathemaDetailSortTh('time','Час')+mathemaDetailSortTh('name','Учень')+mathemaDetailSortTh('topic','Тема')+mathemaDetailSortTh('paid','Оплата')+'</tr></thead><tbody>'+(detailRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає уроків</td></tr>')+'</tbody></table></div>';
+  const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div><div class="stat-card"><b>'+sum+' грн</b><span>Сума оплат</span></div></div>';
+  el.reportOutput.innerHTML='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
+}
+function reportRange(){
+  if(el.reportTypeSelect&&el.reportTypeSelect.value==='mathema')return mathemaReportRange();
+  const p=el.reportPeriodSelect.value,t=new Date(),s=iso(t);
+  if(p==='today')return{from:s,to:s};
+  if(p==='week'){const a=monday(t),b=new Date(a);b.setDate(a.getDate()+6);return{from:iso(a),to:iso(b)}}
+  if(p==='month')return{from:iso(new Date(t.getFullYear(),t.getMonth(),1)),to:iso(new Date(t.getFullYear(),t.getMonth()+1,0))};
+  if(p==='year')return{from:iso(new Date(t.getFullYear(),0,1)),to:iso(new Date(t.getFullYear(),11,31))};
+  if(p==='all'){if(!state.lessons.length)return{from:s,to:s};const d=state.lessons.map(x=>x.date).sort();return{from:d[0],to:d[d.length-1]};}
+  return{from:el.reportFromDate.value||s,to:el.reportToDate.value||s};
+}
 function setReportSort(key){
   if(state.reportSortKey===key)state.reportSortDir*=-1;
   else{state.reportSortKey=key;state.reportSortDir=1;}
@@ -815,7 +892,9 @@ function sortReportRows(rows,key,dir,getter){
 }
 function reportSortTh(key,label){return '<th><button type="button" onclick="setReportSort(\''+key+'\')" style="border:0;background:none;padding:0;font:inherit;font-weight:800;cursor:pointer;">'+esc(label)+reportSortIndicator(key)+'</button></th>';}
 function generateReport(){
-  const r=reportRange(),type=el.reportTypeSelect?el.reportTypeSelect.value:'completed-payment';
+  const type=el.reportTypeSelect?el.reportTypeSelect.value:'completed-payment';
+  if(type==='mathema'){generateMathemaReport();return;}
+  const r=reportRange();
   const inRange=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to);
   const done=inRange.filter(l=>l.status==='completed'),paid=done.filter(l=>l.paid);
   const unpaid=done.filter(l=>!l.paid),sum=paid.reduce((a,l)=>a+Number(l.paidAmount||0),0);
@@ -909,11 +988,14 @@ function setupUI(){
   safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
   safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
   safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
-  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');generateReport();el.reportsModal.classList.remove('hidden');});
+  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');updateReportTypeUI();generateReport();el.reportsModal.classList.remove('hidden');});
   safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
-  safeBind('reportPeriodSelect','onchange',()=>el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none');
-  safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;generateReport();});
+  safeBind('reportPeriodSelect','onchange',()=>{el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none';});
+  safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;state.mathemaPeriodOffset=null;updateReportTypeUI();generateReport();});
   safeBind('generateReportBtn','onclick',generateReport);
+  safeBind('mathemaReportPrevBtn','onclick',()=>{state.mathemaPeriodOffset=currentMathemaOffset()-1;updateMathemaPeriodLabel();generateReport();});
+  safeBind('mathemaReportNextBtn','onclick',()=>{state.mathemaPeriodOffset=currentMathemaOffset()+1;updateMathemaPeriodLabel();generateReport();});
+  safeBind('mathemaReportTodayBtn','onclick',()=>{state.mathemaPeriodOffset=mathemaOffsetForDate(new Date());updateMathemaPeriodLabel();generateReport();});
   safeBind('modalIssuesBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderIssues();el.issuesModal.classList.remove('hidden');});
   safeBind('closeIssuesModalBtn','onclick',()=>el.issuesModal.classList.add('hidden'));
   safeBind('modalAuditLogBtn','onclick',()=>{el.settingsModal.classList.add('hidden');renderAudit();el.auditLogModal.classList.remove('hidden');});
