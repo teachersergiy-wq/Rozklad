@@ -508,6 +508,135 @@
       .header .tools-row { grid-column:1 / -1; grid-row:3; width:100%; justify-content:flex-end; flex-wrap:wrap; overflow:visible; }
     }
 
+
+    /* HDR-3: атомарна навігація та однорядкова шапка на ПК від 900 CSS px. */
+    @media (min-width: 900px) {
+      .header {
+        display:flex !important;
+        flex-direction:row !important;
+        flex-wrap:nowrap !important;
+        align-items:center !important;
+        justify-content:flex-start !important;
+        gap:clamp(3px, .42vw, 7px) !important;
+        width:100%;
+        min-width:0;
+        padding:4px 0 6px;
+      }
+      .header-main-row { display:contents !important; }
+      .header-main-row h1 {
+        display:block;
+        flex:0 0 auto;
+        min-width:0;
+        margin:0 clamp(1px,.25vw,4px) 0 0 !important;
+        font-size:clamp(.82rem,1.05vw,1.15rem) !important;
+        line-height:1.1;
+        white-space:nowrap;
+      }
+      .header .date-group {
+        display:flex !important;
+        flex:1 1 0;
+        min-width:0;
+        width:auto;
+        justify-content:center;
+        align-items:center;
+        flex-wrap:nowrap !important;
+        gap:clamp(2px,.3vw,5px) !important;
+        white-space:nowrap;
+      }
+      .header .date-group > button {
+        flex:0 0 auto !important;
+        min-width:0;
+        padding:clamp(3px,.35vw,5px) clamp(4px,.45vw,7px) !important;
+        font-size:clamp(.68rem,.78vw,.82rem) !important;
+        line-height:1.15;
+        white-space:nowrap;
+      }
+      .header #current-date-display {
+        display:flex;
+        flex:1 1 clamp(82px,11vw,190px) !important;
+        width:clamp(82px,11vw,190px) !important;
+        min-width:72px !important;
+        max-width:clamp(82px,11vw,190px) !important;
+        box-sizing:border-box;
+        overflow:hidden;
+        white-space:nowrap;
+        text-overflow:ellipsis;
+        justify-content:center;
+        gap:3px;
+      }
+      .header #current-date-display .date-display-big {
+        display:block;
+        flex:1 1 auto;
+        min-width:0;
+        max-width:100%;
+        overflow:hidden;
+        white-space:nowrap;
+        text-overflow:ellipsis;
+        font-size:clamp(.78rem,.9vw,1rem) !important;
+        line-height:1.15;
+      }
+      .header #current-date-display .date-display-year {
+        flex:0 0 auto;
+        font-size:clamp(.68rem,.78vw,.82rem) !important;
+      }
+      .header .view-group {
+        display:flex !important;
+        flex:0 1 auto;
+        width:auto;
+        min-width:0;
+        flex-wrap:nowrap !important;
+        align-items:center;
+        justify-content:center;
+        gap:clamp(1px,.22vw,4px) !important;
+        margin:0 !important;
+      }
+      .header .view-group button {
+        flex:0 1 auto !important;
+        min-width:0;
+        padding:clamp(3px,.3vw,5px) clamp(3px,.42vw,7px) !important;
+        font-size:clamp(.65rem,.78vw,.86rem) !important;
+        line-height:1.15;
+        white-space:nowrap;
+      }
+      .header .tools-row {
+        display:flex !important;
+        flex:0 0 auto !important;
+        width:auto !important;
+        min-width:0;
+        margin:0 0 0 auto !important;
+        padding:0 !important;
+        gap:clamp(2px,.3vw,5px) !important;
+        overflow:visible !important;
+        flex-wrap:nowrap !important;
+        justify-content:flex-end;
+        align-items:center;
+      }
+      .header .tools-row .icon-btn {
+        flex:0 0 auto;
+        width:clamp(27px,2vw,34px) !important;
+        height:clamp(28px,2vw,34px) !important;
+        padding:3px !important;
+        font-size:clamp(.8rem,1vw,1rem) !important;
+      }
+      .header .tools-row #sync-status {
+        flex:0 0 auto;
+        min-width:0;
+        margin-left:1px;
+        font-size:clamp(.62rem,.72vw,.76rem) !important;
+        white-space:nowrap;
+        gap:3px;
+      }
+      .header .filter-panel {
+        position:absolute;
+        top:100%;
+        right:0;
+        z-index:510;
+        flex:0 0 auto;
+        width:min(760px,100%);
+        margin:0;
+      }
+    }
+
     .mathema-report-navigation { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin:8px 0 12px; }
     .mathema-report-navigation span { flex:1 1 240px; min-width:0; text-align:center; font-weight:800; color:var(--text-strong); }
     .report-table-wrap { width:100%; max-width:100%; overflow-x:auto; }
