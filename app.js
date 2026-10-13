@@ -12,7 +12,7 @@ const AUTO_COMPLETE_MS=48*60*60*1000, MAX_AUDIT=300, THEME_KEY='schedule_theme_p
 
 const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
-  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
+  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],platformRates:[],platformRatesLoaded:false,platformRatesError:null,currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
   selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,highlightedRequestSlot:null
 };
@@ -839,6 +839,38 @@ function mathemaDetailSortTh(key,label){
   const mark=state.mathemaDetailSortKey===key?(state.mathemaDetailSortDir===1?' ↑':' ↓'):'';
   return '<th><button type="button" onclick="setMathemaDetailSort(&quot;'+key+'&quot;)" style="border:0;background:none;padding:0;font:inherit;font-weight:800;cursor:pointer;">'+esc(label+mark)+'</button></th>';
 }
+async function loadPlatformRates(){
+  if(state.platformRatesLoaded)return;
+  state.platformRatesLoaded=true;
+  state.platformRates=[];
+  state.platformRatesError=null;
+  try{
+    if(!state.scheduleId)throw new Error('Не визначено розклад викладача.');
+    const result=await db.from('v2_platform_rates')
+      .select('platform,effective_from,rate_uah')
+      .eq('schedule_id',state.scheduleId)
+      .eq('platform','Mathema')
+      .order('effective_from',{ascending:true});
+    if(result.error)throw result.error;
+    state.platformRates=(result.data||[]).map(x=>({
+      platform:String(x.platform),
+      effective_from:String(x.effective_from),
+      rate_uah:Number(x.rate_uah)
+    })).filter(x=>Number.isFinite(x.rate_uah)&&x.effective_from);
+  }catch(error){
+    state.platformRatesError=error&&error.message?error.message:'Помилка читання ставок.';
+    console.error('Mathema rates could not be loaded:',error);
+  }
+}
+function mathemaRateForDate(date){
+  return state.platformRates
+    .filter(rate=>rate.platform==='Mathema'&&rate.effective_from<=date)
+    .sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0]||null;
+}
+function mathemaMoney(value){
+  if(value===null||value===undefined||!Number.isFinite(Number(value)))return 'Невідомо';
+  return Number(value).toLocaleString('uk-UA',{maximumFractionDigits:2})+' грн';
+}
 function generateMathemaReport(){
   const r=mathemaReportRange();
   const studentById=new Map(state.students.filter(st=>st.cooperationPlatform==='Mathema').map(st=>[st.id,st]));
@@ -847,26 +879,48 @@ function generateMathemaReport(){
   const nameFor=id=>studentById.get(id)?.name||'Невідомий учень';
   const paid=rows.filter(l=>l.paid);
   const unpaid=rows.filter(l=>!l.paid);
-  const sum=paid.reduce((total,l)=>total+Number(l.paidAmount||0),0);
+  const paidSum=paid.reduce((total,l)=>total+Number(l.paidAmount||0),0);
   const byStudent=new Map();
+  const missingRateDates=new Set();
   rows.forEach(l=>{
-    if(!byStudent.has(l.studentId))byStudent.set(l.studentId,{studentId:l.studentId,name:nameFor(l.studentId),completed:0,paid:0,unpaid:0,sum:0});
-    const x=byStudent.get(l.studentId);x.completed++;
-    if(l.paid){x.paid++;x.sum+=Number(l.paidAmount||0);}else x.unpaid++;
+    if(!byStudent.has(l.studentId))byStudent.set(l.studentId,{
+      studentId:l.studentId,name:nameFor(l.studentId),completed:0,due:0,dueKnown:true,paid:0,paidSum:0,remaining:null
+    });
+    const x=byStudent.get(l.studentId);
+    x.completed++;
+    const rate=mathemaRateForDate(l.date);
+    if(rate){x.due+=rate.rate_uah;}else{x.dueKnown=false;missingRateDates.add(l.date);}
+    if(l.paid){x.paid++;x.paidSum+=Number(l.paidAmount||0);}
   });
-  const allowed=['name','completed','paid','unpaid','sum'];
+  byStudent.forEach(x=>{x.remaining=x.dueKnown?x.due-x.paidSum:null;});
+  const missingDates=Array.from(missingRateDates).sort();
+  const totalDueKnown=missingDates.length===0;
+  const dueTotal=totalDueKnown?rows.reduce((total,l)=>total+mathemaRateForDate(l.date).rate_uah,0):null;
+  const remainingTotal=totalDueKnown?dueTotal-paidSum:null;
+  const allowed=['name','completed','due','paidSum','remaining'];
   if(!allowed.includes(state.reportSortKey))state.reportSortKey='name';
-  const students=sortReportRows(Array.from(byStudent.values()),state.reportSortKey,state.reportSortDir,(x,k)=>x[k]);
-  const studentRows=students.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.completed+'</td><td>'+x.paid+'</td><td>'+x.unpaid+'</td><td>'+x.sum+' грн</td></tr>').join('');
-  const summary='<h3 style="margin:12px 0 6px;">Підсумок по учнях</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+reportSortTh('completed','Проведено')+reportSortTh('paid','Оплачено')+reportSortTh('unpaid','Не оплачено')+reportSortTh('sum','Сума оплат')+'</tr></thead><tbody>'+(studentRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає проведених уроків за цей період</td></tr>')+'<tr class="report-total-row"><th>Усього</th><th>'+rows.length+'</th><th>'+paid.length+'</th><th>'+unpaid.length+'</th><th>'+sum+' грн</th></tr></tbody></table></div>';
+  const students=sortReportRows(Array.from(byStudent.values()),state.reportSortKey,state.reportSortDir,(x,k)=>{
+    if(k==='due')return x.dueKnown?x.due:null;
+    if(k==='remaining')return x.remaining;
+    return x[k];
+  });
+  const studentRows=students.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.completed+'</td><td>'+esc(mathemaMoney(x.dueKnown?x.due:null))+'</td><td>'+esc(mathemaMoney(x.paidSum))+'</td><td>'+esc(mathemaMoney(x.remaining))+'</td></tr>').join('');
+  const summary='<h3 style="margin:12px 0 6px;">Підсумок по учнях</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+reportSortTh('completed','Проведено')+reportSortTh('due','До сплати')+reportSortTh('paidSum','Оплачено')+reportSortTh('remaining','Залишок')+'</tr></thead><tbody>'+(studentRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає проведених уроків за цей період</td></tr>')+'<tr class="report-total-row"><th>Усього</th><th>'+rows.length+'</th><th>'+esc(mathemaMoney(dueTotal))+'</th><th>'+esc(mathemaMoney(paidSum))+'</th><th>'+esc(mathemaMoney(remainingTotal))+'</th></tr></tbody></table></div>';
   let details=rows.map(l=>({date:l.date,time:l.time,name:nameFor(l.studentId),topic:l.topic||'—',paid:l.paid?1:0,amount:Number(l.paidAmount||0)}));
   const detailKeys=['date','time','name','topic','paid'];
   if(!detailKeys.includes(state.mathemaDetailSortKey))state.mathemaDetailSortKey='date';
   details=sortReportRows(details,state.mathemaDetailSortKey,state.mathemaDetailSortDir,(x,k)=>x[k]);
-  const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(x.paid?'Оплачено'+(x.amount?' · '+x.amount+' грн':''):'Не оплачено')+'</td></tr>').join('');
+  const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(x.paid?'Оплачено'+(x.amount?' · '+mathemaMoney(x.amount):''):'Не оплачено')+'</td></tr>').join('');
   const detail='<h3 style="margin:18px 0 6px;">Деталізація проведених уроків</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+mathemaDetailSortTh('date','Дата')+mathemaDetailSortTh('time','Час')+mathemaDetailSortTh('name','Учень')+mathemaDetailSortTh('topic','Тема')+mathemaDetailSortTh('paid','Оплата')+'</tr></thead><tbody>'+(detailRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає уроків</td></tr>')+'</tbody></table></div>';
-  const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+plannedRows.length+'</b><span>Заплановано</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div><div class="stat-card"><b>'+sum+' грн</b><span>Сума оплат</span></div></div>';
-  el.reportOutput.innerHTML='<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
+  const activeRate=mathemaRateForDate(iso(new Date()));
+  const activeRateText=activeRate?'Активна ставка Mathema: '+mathemaMoney(activeRate.rate_uah)+'/урок (з '+esc(prettyDate(activeRate.effective_from))+')':'Активна ставка Mathema не визначена.';
+  const warnings=[];
+  if(state.platformRatesError)warnings.push('Не вдалося завантажити таблицю ставок: '+state.platformRatesError+'. Суми до сплати та залишок, для яких потрібна ставка, показані як «Невідомо».');
+  if(missingDates.length&&!state.platformRatesError)warnings.push('Не знайдено ставки Mathema для дат: '+missingDates.slice(0,8).map(prettyDate).join(', ')+(missingDates.length>8?' та інших':'')+'. Для відповідних учнів сума до сплати й залишок невідомі.');
+  if(!activeRate&&!state.platformRatesError&&!missingDates.length)warnings.push('У таблиці немає чинної ставки Mathema для сьогоднішньої дати.');
+  const warningHtml=warnings.map(w=>'<div class="past-notice" role="status">'+esc(w)+'</div>').join('');
+  const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+plannedRows.length+'</b><span>Заплановано</span></div><div class="stat-card"><b>'+esc(mathemaMoney(dueTotal))+'</b><span>До сплати</span></div><div class="stat-card"><b>'+esc(mathemaMoney(paidSum))+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+esc(mathemaMoney(remainingTotal))+'</b><span>Залишок</span></div></div>';
+  el.reportOutput.innerHTML='<h3 style="margin:0 0 6px;">Звіт Матема</h3><div style="font-size:.9rem;font-weight:700;margin-bottom:8px;">'+activeRateText+'</div>'+warningHtml+'<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
 }
 function reportRange(){
   if(el.reportTypeSelect&&el.reportTypeSelect.value==='mathema')return mathemaReportRange();
@@ -989,7 +1043,7 @@ function setupUI(){
   safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
   safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
   safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
-  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');updateReportTypeUI();generateReport();el.reportsModal.classList.remove('hidden');});
+  safeBind('modalReportsBtn','onclick',async()=>{el.settingsModal.classList.add('hidden');state.platformRatesLoaded=false;state.platformRates=[];state.platformRatesError=null;el.reportsModal.classList.remove('hidden');if(el.reportOutput)el.reportOutput.innerHTML='<div style="padding:12px;color:var(--text-muted);">Завантаження звіту…</div>';await loadPlatformRates();updateReportTypeUI();generateReport();});
   safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
   safeBind('reportPeriodSelect','onchange',()=>{el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none';});
   safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;state.mathemaPeriodOffset=null;updateReportTypeUI();generateReport();});
