@@ -1078,6 +1078,17 @@ async function start(gate,knownUser=null){
     if(m)m.textContent='Вхід виконано, але розклад не вдалося завантажити: '+msg;
   }
 }
+
+function logHeaderLayoutDiagnostic(){
+  const header=document.querySelector('.header');
+  if(!header)return;
+  const nodes=Array.from(header.querySelectorAll('.header-main-row h1, .header .date-group, .header .view-group, .header .tools-row'));
+  const tops=nodes.map(node=>Math.round(node.getBoundingClientRect().top));
+  const rowCount=new Set(tops).size;
+  console.info('[HDR-3] window.innerWidth='+window.innerWidth+' CSS px; headerRows='+rowCount+'; groupTops='+tops.join(','));
+}
+window.addEventListener('resize',()=>window.requestAnimationFrame(logHeaderLayoutDiagnostic),{passive:true});
+
 document.addEventListener('DOMContentLoaded',async()=>{
   let gate;
   try{gate=createAuthGate();setVisible(false);}catch(e){console.error('Auth gate initialization failed',e);return;}
