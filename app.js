@@ -289,11 +289,31 @@ function badges(){const n=state.bookingRequests.filter(x=>x.status==='pending').
 function dateDisplay(){
   el.currentDateDisplay.innerHTML='';
   const s=document.createElement('span');s.className='date-display-big';
-  if(state.view==='day')s.textContent=state.currentDate.toLocaleDateString('uk-UA',{day:'numeric',month:'long'});
-  else if(state.view==='week'){const a=monday(state.currentDate),b=new Date(a);b.setDate(a.getDate()+6);s.textContent=a.getDate()+' '+MONTHS[a.getMonth()]+' - '+b.getDate()+' '+MONTHS[b.getMonth()];}
-  else if(state.view==='month'){s.textContent=state.currentDate.toLocaleDateString('uk-UA',{month:'long'});const y=document.createElement('span');y.className='date-display-year';y.textContent=state.currentDate.getFullYear();el.currentDateDisplay.append(s,y);return;}
-  else{s.textContent=String(state.currentDate.getFullYear());}
-  el.currentDateDisplay.appendChild(s);
+  let fullLabel='';
+  if(state.view==='day'){
+    s.textContent=state.currentDate.toLocaleDateString('uk-UA',{day:'numeric',month:'long'});
+    fullLabel=state.currentDate.toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'});
+  }else if(state.view==='week'){
+    const a=monday(state.currentDate),b=new Date(a);b.setDate(a.getDate()+6);
+    s.textContent=a.getDate()+' '+MONTHS[a.getMonth()]+' - '+b.getDate()+' '+MONTHS[b.getMonth()];
+    fullLabel=a.toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'})+' — '+b.toLocaleDateString('uk-UA',{day:'numeric',month:'long',year:'numeric'});
+  }else if(state.view==='month'){
+    const monthLabel=state.currentDate.toLocaleDateString('uk-UA',{month:'long'});
+    s.textContent=monthLabel;
+    const y=document.createElement('span');y.className='date-display-year';y.textContent=state.currentDate.getFullYear();
+    el.currentDateDisplay.append(s,y);
+    fullLabel=monthLabel+' '+state.currentDate.getFullYear();
+  }else{
+    s.textContent=String(state.currentDate.getFullYear());
+    fullLabel=s.textContent;
+  }
+  if(!el.currentDateDisplay.contains(s))el.currentDateDisplay.appendChild(s);
+  el.currentDateDisplay.title=fullLabel;
+  if(window.innerWidth>640){
+    s.style.fontSize='16px';
+    if(s.scrollWidth>s.clientWidth)s.style.fontSize='14.8px';
+    if(s.scrollWidth>s.clientWidth)s.style.fontSize='13.6px';
+  }
 }
 function viewButtons(){[el.viewDayBtn,el.viewWeekBtn,el.viewMonthBtn,el.viewYearBtn].forEach(x=>x.classList.remove('active'));const b=el['view'+state.view.charAt(0).toUpperCase()+state.view.slice(1)+'Btn'];if(b)b.classList.add('active');}
 function populateLessonTimeSelects(){
