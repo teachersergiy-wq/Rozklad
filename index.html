@@ -508,6 +508,10 @@
       .header .tools-row { grid-column:1 / -1; grid-row:3; width:100%; justify-content:flex-end; flex-wrap:wrap; overflow:visible; }
     }
 
+    .mathema-report-navigation { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin:8px 0 12px; }
+    .mathema-report-navigation span { flex:1 1 240px; min-width:0; text-align:center; font-weight:800; color:var(--text-strong); }
+    .report-table-wrap { width:100%; max-width:100%; overflow-x:auto; }
+    .report-total-row { background:var(--surface-alt); font-weight:800; }
     @media (max-width: 640px) {
       body { padding: 10px; }
       .slot-request-actions { flex-direction: column; }
@@ -755,9 +759,10 @@
             <option value="summary">Загальний звіт по учнях</option>
             <option value="planned">Заплановані уроки</option>
             <option value="payments">По способах оплати</option>
+            <option value="mathema">Звіт Матема</option>
           </select>
         </div>
-        <div class="form-group" style="flex:1;">
+        <div id="report-standard-period-group" class="form-group" style="flex:1;">
           <label>Період</label>
           <select id="report-period-select">
             <option value="today">Сьогодні</option>
@@ -769,6 +774,13 @@
             <option value="custom">Довільний період</option>
           </select>
         </div>
+      </div>
+
+      <div id="mathema-report-navigation" class="mathema-report-navigation" style="display:none;">
+        <button id="mathema-report-prev-btn" type="button" aria-label="Попередній 14-денний період">‹</button>
+        <span id="mathema-report-period-label"></span>
+        <button id="mathema-report-next-btn" type="button" aria-label="Наступний 14-денний період">›</button>
+        <button id="mathema-report-today-btn" type="button">Період сьогодні</button>
       </div>
 
       <div class="flex-row" id="report-custom-range" style="display:none;">
