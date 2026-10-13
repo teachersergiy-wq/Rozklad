@@ -440,6 +440,74 @@
       .month-lesson-name { font-size: 0.62rem; }
     }
 
+    /* HDR-2: compact single-line desktop header; mobile layout remains unchanged. */
+    @media (min-width: 1001px) {
+      .header {
+        display:grid;
+        grid-template-columns:max-content minmax(300px, max-content) max-content max-content;
+        align-items:center;
+        justify-content:space-between;
+        column-gap:clamp(8px, 1vw, 18px);
+        row-gap:8px;
+        padding:4px 0 6px;
+      }
+      .header-main-row { display:contents; }
+      .header-main-row h1 { grid-column:1; grid-row:1; font-size:1.2rem; }
+      .header .date-group { grid-column:2; grid-row:1; min-width:0; justify-content:center; gap:6px; }
+      #current-date-display {
+        box-sizing:border-box;
+        width:220px;
+        min-width:220px;
+        max-width:220px;
+        flex:0 0 220px;
+        min-height:24px;
+        overflow:hidden;
+        white-space:nowrap;
+        text-overflow:ellipsis;
+      }
+      #current-date-display .date-display-big {
+        display:block;
+        min-width:0;
+        max-width:100%;
+        overflow:hidden;
+        white-space:nowrap;
+        text-overflow:ellipsis;
+        font-size:1rem;
+        line-height:1.15;
+      }
+      #current-date-display .date-display-year { flex-shrink:0; font-size:.9rem; }
+      .header .view-group { grid-column:3; grid-row:1; width:auto; justify-content:center; flex-wrap:nowrap; gap:4px; }
+      .header .view-group button { padding:6px 8px; }
+      .header .tools-row {
+        grid-column:4;
+        grid-row:1;
+        width:auto;
+        justify-content:flex-end;
+        gap:5px;
+        padding:0;
+        overflow:visible;
+      }
+      .header .tools-row .icon-btn { width:34px; height:34px; padding:5px 7px; }
+      .header .tools-row #sync-status { white-space:nowrap; font-size:.78rem; }
+    }
+    @media (min-width: 641px) and (max-width: 1000px) {
+      .header {
+        display:grid;
+        grid-template-columns:max-content minmax(0,1fr);
+        align-items:center;
+        column-gap:12px;
+        row-gap:8px;
+      }
+      .header-main-row { display:contents; }
+      .header-main-row h1 { grid-column:1; grid-row:1; font-size:1.1rem; }
+      .header .date-group { grid-column:2; grid-row:1; justify-content:flex-end; min-width:0; gap:5px; }
+      #current-date-display { box-sizing:border-box; width:200px; min-width:0; max-width:200px; flex:0 1 200px; overflow:hidden; white-space:nowrap; }
+      #current-date-display .date-display-big { display:block; min-width:0; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:1rem; }
+      .header .view-group { grid-column:1 / -1; grid-row:2; width:100%; justify-content:center; gap:5px; }
+      .header .view-group button { padding:6px 10px; }
+      .header .tools-row { grid-column:1 / -1; grid-row:3; width:100%; justify-content:flex-end; flex-wrap:wrap; overflow:visible; }
+    }
+
     @media (max-width: 640px) {
       body { padding: 10px; }
       .slot-request-actions { flex-direction: column; }
