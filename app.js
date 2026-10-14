@@ -12,7 +12,7 @@ const AUTO_COMPLETE_MS=48*60*60*1000, MAX_AUDIT=300, THEME_KEY='schedule_theme_p
 
 const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
-  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],platformRates:[],platformRatesLoaded:false,platformRatesError:null,currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
+  bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
   selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,highlightedRequestSlot:null
 };
@@ -565,7 +565,7 @@ function requireLessonStudent(){
 }
 function openAddLesson(date,h){
   if(!activeStudents().length){toast("Спочатку додайте хоча б одного активного учня.",'error');el.studentsModal.classList.remove('hidden');state.showArchivedStudents=false;renderStudents();return;}
-  state.editingLessonId=null;el.lessonModalTitle.textContent='Додати урок';selects();clearLessonStudentRequired();el.lessonStudentSelect.value='';el.lessonDateInput.value=date||iso(state.currentDate);el.lessonHourSelect.value=String(h??18).padStart(2,'0');el.lessonMinuteSelect.value='00';el.lessonPaidSelect.value='false';el.lessonStatusSelect.value='planned';el.lessonTopicInput.value='';el.lessonHomeworkInput.value='';el.lessonPaidAmount.value=DEFAULT_PAID_AMOUNT;el.lessonPaidDate.value=el.lessonDateInput.value;el.lessonPaidMethod.value=DEFAULT_PAID_METHOD;el.repeatGroup.style.display='block';el.deleteLessonBtn.style.display='none';formEdit(true);paymentVisible();el.lessonModal.classList.remove('hidden');
+  state.editingLessonId=null;el.lessonModalTitle.textContent='Додати урок';selects();clearLessonStudentRequired();el.lessonStudentSelect.value='';el.lessonDateInput.value=date||iso(state.currentDate);el.lessonHourSelect.value=String(h??18).padStart(2,'0');el.lessonMinuteSelect.value='00';el.lessonPaidSelect.value='false';el.lessonStatusSelect.value='planned';el.lessonTopicInput.value='';el.lessonHomeworkInput.value='';el.lessonPaidAmount.value='';el.lessonPaidDate.value=el.lessonDateInput.value;el.lessonPaidMethod.value=DEFAULT_PAID_METHOD;el.repeatGroup.style.display='block';el.deleteLessonBtn.style.display='none';formEdit(true);paymentVisible();el.lessonModal.classList.remove('hidden');
 }
 function paymentVisible(){el.paymentDetailsGroup.style.display=el.lessonPaidSelect.value==='true'?'block':'none';}
 function formEdit(ok){
@@ -573,14 +573,14 @@ function formEdit(ok){
   el.saveLessonBtn.style.display=ok?'block':'none';el.lessonPastNotice.style.display=ok?'none':'block';
 }
 function openEditLesson(id){
-  const l=state.lessons.find(x=>x.id===String(id));if(!l)return;state.editingLessonId=l.id;selects();el.lessonStudentSelect.value=l.studentId;el.lessonDateInput.value=l.date;const p=(l.time||'18:00').split(':');el.lessonHourSelect.value=p[0];el.lessonMinuteSelect.value=p[1]||'00';el.lessonPaidSelect.value=String(l.paid);el.lessonStatusSelect.value=l.status;el.lessonTopicInput.value=l.topic;el.lessonHomeworkInput.value=l.homework;el.lessonPaidAmount.value=l.paidAmount??DEFAULT_PAID_AMOUNT;el.lessonPaidDate.value=l.paidDate||l.date;el.lessonPaidMethod.value=PAID_METHODS.includes(l.paidMethod)?l.paidMethod:DEFAULT_PAID_METHOD;el.repeatGroup.style.display='none';paymentVisible();const ok=!pastDate(l.date)||state.isEditMode;el.lessonModalTitle.textContent=ok?'Редагувати урок':'Перегляд уроку';formEdit(ok);el.deleteLessonBtn.style.display=l.status==='planned'?'block':'none';el.lessonModal.classList.remove('hidden');
+  const l=state.lessons.find(x=>x.id===String(id));if(!l)return;state.editingLessonId=l.id;selects();el.lessonStudentSelect.value=l.studentId;el.lessonDateInput.value=l.date;const p=(l.time||'18:00').split(':');el.lessonHourSelect.value=p[0];el.lessonMinuteSelect.value=p[1]||'00';el.lessonPaidSelect.value=String(l.paid);el.lessonStatusSelect.value=l.status;el.lessonTopicInput.value=l.topic;el.lessonHomeworkInput.value=l.homework;el.lessonPaidAmount.value=l.paidAmount??'';el.lessonPaidDate.value=l.paidDate||l.date;el.lessonPaidMethod.value=PAID_METHODS.includes(l.paidMethod)?l.paidMethod:DEFAULT_PAID_METHOD;el.repeatGroup.style.display='none';paymentVisible();const ok=!pastDate(l.date)||state.isEditMode;el.lessonModalTitle.textContent=ok?'Редагувати урок':'Перегляд уроку';formEdit(ok);el.deleteLessonBtn.style.display=l.status==='planned'?'block':'none';el.lessonModal.classList.remove('hidden');
 }
 async function saveLesson(){
   const sid=el.lessonStudentSelect.value,date=el.lessonDateInput.value,t=el.lessonHourSelect.value+':'+el.lessonMinuteSelect.value,paid=el.lessonPaidSelect.value==='true',status=el.lessonStatusSelect.value;
   if(!sid){requireLessonStudent();toast('Оберіть учня перед збереженням уроку.','error');return;}
   clearLessonStudentRequired();
   if(!date){toast('Виберіть дату уроку.','error');return;}
-  const payload={schedule_id:state.scheduleId,student_id:sid,lesson_date:date,lesson_time:t,status:status,topic:el.lessonTopicInput.value.trim()||null,homework:el.lessonHomeworkInput.value.trim()||null,paid:paid,paid_amount:paid?(parseFloat(el.lessonPaidAmount.value)||DEFAULT_PAID_AMOUNT):null,paid_date:paid?(el.lessonPaidDate.value||date):null,paid_method:paid?(el.lessonPaidMethod.value||DEFAULT_PAID_METHOD):null};
+  const payload={schedule_id:state.scheduleId,student_id:sid,lesson_date:date,lesson_time:t,status:status,topic:el.lessonTopicInput.value.trim()||null,homework:el.lessonHomeworkInput.value.trim()||null,paid:paid,paid_amount:el.lessonPaidAmount.value.trim()===''?null:Number(el.lessonPaidAmount.value),paid_date:paid?(el.lessonPaidDate.value||date):null,paid_method:paid?(el.lessonPaidMethod.value||DEFAULT_PAID_METHOD):null};
   try{syncStatus('saving');if(state.editingLessonId){const old=state.lessons.find(x=>x.id===state.editingLessonId);if(old&&pastDate(old.date)&&!state.isEditMode){toast('Для минулої дати увімкніть режим редагування.','error');return;}const r=await db.from('v2_lessons').update(payload).eq('id',state.editingLessonId).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;}
   else{const count=parseInt(el.lessonRepeatSelect.value,10)||1,p=date.split('-').map(Number);for(let i=0;i<count;i++){const d=new Date(p[0],p[1]-1,p[2]+i*7),r=await db.from('v2_lessons').insert(Object.assign({},payload,{lesson_date:iso(d)}));if(r.error)throw r.error;}}
   await loadV2();el.lessonModal.classList.add('hidden');render();toast('Урок збережено.','success');}catch(e){dbFail(e);}
@@ -839,34 +839,6 @@ function mathemaDetailSortTh(key,label){
   const mark=state.mathemaDetailSortKey===key?(state.mathemaDetailSortDir===1?' ↑':' ↓'):'';
   return '<th><button type="button" onclick="setMathemaDetailSort(&quot;'+key+'&quot;)" style="border:0;background:none;padding:0;font:inherit;font-weight:800;cursor:pointer;">'+esc(label+mark)+'</button></th>';
 }
-async function loadPlatformRates(){
-  if(state.platformRatesLoaded)return;
-  state.platformRatesLoaded=true;
-  state.platformRates=[];
-  state.platformRatesError=null;
-  try{
-    if(!state.scheduleId)throw new Error('Не визначено розклад викладача.');
-    const result=await db.from('v2_platform_rates')
-      .select('platform,effective_from,rate_uah')
-      .eq('schedule_id',state.scheduleId)
-      .eq('platform','Mathema')
-      .order('effective_from',{ascending:true});
-    if(result.error)throw result.error;
-    state.platformRates=(result.data||[]).map(x=>({
-      platform:String(x.platform),
-      effective_from:String(x.effective_from),
-      rate_uah:Number(x.rate_uah)
-    })).filter(x=>Number.isFinite(x.rate_uah)&&x.effective_from);
-  }catch(error){
-    state.platformRatesError=error&&error.message?error.message:'Помилка читання ставок.';
-    console.error('Mathema rates could not be loaded:',error);
-  }
-}
-function mathemaRateForDate(date){
-  return state.platformRates
-    .filter(rate=>rate.platform==='Mathema'&&rate.effective_from<=date)
-    .sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0]||null;
-}
 function mathemaMoney(value){
   if(value===null||value===undefined||!Number.isFinite(Number(value)))return 'Невідомо';
   return Number(value).toLocaleString('uk-UA',{maximumFractionDigits:2})+' грн';
@@ -878,25 +850,25 @@ function generateMathemaReport(){
   const plannedRows=state.lessons.filter(l=>l.date>=r.from&&l.date<=r.to&&l.status==='planned'&&studentById.has(l.studentId));
   const nameFor=id=>studentById.get(id)?.name||'Невідомий учень';
   const paid=rows.filter(l=>l.paid);
-  const unpaid=rows.filter(l=>!l.paid);
-  const paidSum=paid.reduce((total,l)=>total+Number(l.paidAmount||0),0);
+  const paidSum=paid.reduce((total,l)=>total+(Number.isFinite(l.paidAmount)?l.paidAmount:0),0);
   const byStudent=new Map();
-  const missingRateDates=new Set();
   rows.forEach(l=>{
     if(!byStudent.has(l.studentId))byStudent.set(l.studentId,{
       studentId:l.studentId,name:nameFor(l.studentId),completed:0,due:0,dueKnown:true,paid:0,paidSum:0,remaining:null
     });
     const x=byStudent.get(l.studentId);
     x.completed++;
-    const rate=mathemaRateForDate(l.date);
-    if(rate){x.due+=rate.rate_uah;}else{x.dueKnown=false;missingRateDates.add(l.date);}
-    if(l.paid){x.paid++;x.paidSum+=Number(l.paidAmount||0);}
+    if(l.paidAmount===null||l.paidAmount===undefined||!Number.isFinite(l.paidAmount)){
+      x.dueKnown=false;
+    }else{
+      x.due+=l.paidAmount;
+    }
+    if(l.paid){x.paid++;x.paidSum+=Number.isFinite(l.paidAmount)?l.paidAmount:0;}
   });
   byStudent.forEach(x=>{x.remaining=x.dueKnown?x.due-x.paidSum:null;});
-  const missingDates=Array.from(missingRateDates).sort();
-  const totalDueKnown=missingDates.length===0;
-  const dueTotal=totalDueKnown?rows.reduce((total,l)=>total+mathemaRateForDate(l.date).rate_uah,0):null;
-  const remainingTotal=totalDueKnown?dueTotal-paidSum:null;
+  const missingAmountLessons=rows.filter(l=>l.paidAmount===null||l.paidAmount===undefined||!Number.isFinite(l.paidAmount));
+  const dueTotal=missingAmountLessons.length?null:rows.reduce((total,l)=>total+l.paidAmount,0);
+  const remainingTotal=dueTotal===null?null:dueTotal-paidSum;
   const allowed=['name','completed','due','paidSum','remaining'];
   if(!allowed.includes(state.reportSortKey))state.reportSortKey='name';
   const students=sortReportRows(Array.from(byStudent.values()),state.reportSortKey,state.reportSortDir,(x,k)=>{
@@ -906,21 +878,17 @@ function generateMathemaReport(){
   });
   const studentRows=students.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.completed+'</td><td>'+esc(mathemaMoney(x.dueKnown?x.due:null))+'</td><td>'+esc(mathemaMoney(x.paidSum))+'</td><td>'+esc(mathemaMoney(x.remaining))+'</td></tr>').join('');
   const summary='<h3 style="margin:12px 0 6px;">Підсумок по учнях</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+reportSortTh('name','Учень')+reportSortTh('completed','Проведено')+reportSortTh('due','До сплати')+reportSortTh('paidSum','Оплачено')+reportSortTh('remaining','Залишок')+'</tr></thead><tbody>'+(studentRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає проведених уроків за цей період</td></tr>')+'<tr class="report-total-row"><th>Усього</th><th>'+rows.length+'</th><th>'+esc(mathemaMoney(dueTotal))+'</th><th>'+esc(mathemaMoney(paidSum))+'</th><th>'+esc(mathemaMoney(remainingTotal))+'</th></tr></tbody></table></div>';
-  let details=rows.map(l=>({date:l.date,time:l.time,name:nameFor(l.studentId),topic:l.topic||'—',paid:l.paid?1:0,amount:Number(l.paidAmount||0)}));
+  let details=rows.map(l=>({date:l.date,time:l.time,name:nameFor(l.studentId),topic:l.topic||'—',paid:l.paid?1:0,amount:l.paidAmount}));
   const detailKeys=['date','time','name','topic','paid'];
   if(!detailKeys.includes(state.mathemaDetailSortKey))state.mathemaDetailSortKey='date';
   details=sortReportRows(details,state.mathemaDetailSortKey,state.mathemaDetailSortDir,(x,k)=>x[k]);
-  const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(x.paid?'Оплачено'+(x.amount?' · '+mathemaMoney(x.amount):''):'Не оплачено')+'</td></tr>').join('');
-  const detail='<h3 style="margin:18px 0 6px;">Деталізація проведених уроків</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+mathemaDetailSortTh('date','Дата')+mathemaDetailSortTh('time','Час')+mathemaDetailSortTh('name','Учень')+mathemaDetailSortTh('topic','Тема')+mathemaDetailSortTh('paid','Оплата')+'</tr></thead><tbody>'+(detailRows||'<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">Немає уроків</td></tr>')+'</tbody></table></div>';
-  const activeRate=mathemaRateForDate(iso(new Date()));
-  const activeRateText=activeRate?'Активна ставка Mathema: '+mathemaMoney(activeRate.rate_uah)+'/урок (з '+esc(prettyDate(activeRate.effective_from))+')':'Активна ставка Mathema не визначена.';
+  const detailRows=details.map(x=>'<tr><td>'+esc(prettyDate(x.date))+'</td><td>'+esc(x.time)+'</td><td>'+esc(x.name)+'</td><td>'+esc(x.topic)+'</td><td>'+esc(mathemaMoney(x.amount))+'</td><td>'+esc(x.paid?'Оплачено':'Не оплачено')+'</td></tr>').join('');
+  const detail='<h3 style="margin:18px 0 6px;">Деталізація проведених уроків</h3><div class="report-table-wrap"><table class="report-table"><thead><tr>'+mathemaDetailSortTh('date','Дата')+mathemaDetailSortTh('time','Час')+mathemaDetailSortTh('name','Учень')+mathemaDetailSortTh('topic','Тема')+'<th>Сума уроку</th>'+mathemaDetailSortTh('paid','Оплата')+'</tr></thead><tbody>'+(detailRows||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Немає уроків</td></tr>')+'</tbody></table></div>';
   const warnings=[];
-  if(state.platformRatesError)warnings.push('Не вдалося завантажити таблицю ставок: '+state.platformRatesError+'. Суми до сплати та залишок, для яких потрібна ставка, показані як «Невідомо».');
-  if(missingDates.length&&!state.platformRatesError)warnings.push('Не знайдено ставки Mathema для дат: '+missingDates.slice(0,8).map(prettyDate).join(', ')+(missingDates.length>8?' та інших':'')+'. Для відповідних учнів сума до сплати й залишок невідомі.');
-  if(!activeRate&&!state.platformRatesError&&!missingDates.length)warnings.push('У таблиці немає чинної ставки Mathema для сьогоднішньої дати.');
+  if(missingAmountLessons.length)warnings.push('Для '+missingAmountLessons.length+' проведених уроків не вказано суму. Відкрийте ці уроки в розкладі та заповніть поле «Сума уроку»; загальна сума до сплати й залишок поки невідомі.');
   const warningHtml=warnings.map(w=>'<div class="past-notice" role="status">'+esc(w)+'</div>').join('');
   const stats='<div class="stat-cards"><div class="stat-card"><b>'+rows.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+plannedRows.length+'</b><span>Заплановано</span></div><div class="stat-card"><b>'+esc(mathemaMoney(dueTotal))+'</b><span>До сплати</span></div><div class="stat-card"><b>'+esc(mathemaMoney(paidSum))+'</b><span>Оплачено</span></div><div class="stat-card"><b>'+esc(mathemaMoney(remainingTotal))+'</b><span>Залишок</span></div></div>';
-  el.reportOutput.innerHTML='<h3 style="margin:0 0 6px;">Звіт Матема</h3><div style="font-size:.9rem;font-weight:700;margin-bottom:8px;">'+activeRateText+'</div>'+warningHtml+'<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
+  el.reportOutput.innerHTML='<h3 style="margin:0 0 6px;">Звіт Матема</h3>'+warningHtml+'<div style="font-size:.85rem;color:var(--text-muted);margin-bottom:8px;">Період: '+esc(prettyDate(r.from))+' — '+esc(prettyDate(r.to))+'</div>'+stats+summary+detail;
 }
 function reportRange(){
   if(el.reportTypeSelect&&el.reportTypeSelect.value==='mathema')return mathemaReportRange();
@@ -1043,7 +1011,7 @@ function setupUI(){
   safeBind('requestsStudentFilter','onchange',e=>{state.requestsStudentId=e.target.value||null;renderRequests();});
   safeBind('closeRequestsModalBtn','onclick',()=>el.requestsModal.classList.add('hidden'));
   safeBind('slotRequestModalCloseBtn','onclick',closeSlotRequestModal);
-  safeBind('modalReportsBtn','onclick',async()=>{el.settingsModal.classList.add('hidden');state.platformRatesLoaded=false;state.platformRates=[];state.platformRatesError=null;el.reportsModal.classList.remove('hidden');if(el.reportOutput)el.reportOutput.innerHTML='<div style="padding:12px;color:var(--text-muted);">Завантаження звіту…</div>';await loadPlatformRates();updateReportTypeUI();generateReport();});
+  safeBind('modalReportsBtn','onclick',()=>{el.settingsModal.classList.add('hidden');el.reportsModal.classList.remove('hidden');updateReportTypeUI();generateReport();});
   safeBind('closeReportsModalBtn','onclick',()=>el.reportsModal.classList.add('hidden'));
   safeBind('reportPeriodSelect','onchange',()=>{el.reportCustomRange.style.display=el.reportPeriodSelect.value==='custom'?'flex':'none';});
   safeBind('reportTypeSelect','onchange',()=>{state.reportSortKey=el.reportTypeSelect.value==='payments'?'sum':'name';state.reportSortDir=1;state.mathemaPeriodOffset=null;updateReportTypeUI();generateReport();});
