@@ -579,6 +579,7 @@
         flex:0 0 auto;
         font-size:clamp(.68rem,.78vw,.82rem) !important;
       }
+      /* HDR-4: візуально відокремлені блоки перемикання періодів та інструментів. */
       .header .view-group {
         display:flex !important;
         flex:0 1 auto;
@@ -588,7 +589,12 @@
         align-items:center;
         justify-content:center;
         gap:clamp(1px,.22vw,4px) !important;
-        margin:0 !important;
+        margin:0 0 0 clamp(5px,.55vw,10px) !important;
+        padding:3px clamp(3px,.35vw,6px);
+        border:1px solid var(--border);
+        border-radius:9px;
+        background:var(--surface);
+        box-sizing:border-box;
       }
       .header .view-group button {
         flex:0 1 auto !important;
@@ -603,9 +609,13 @@
         flex:0 0 auto !important;
         width:auto !important;
         min-width:0;
-        margin:0 0 0 auto !important;
-        padding:0 !important;
+        margin:0 0 0 clamp(7px,.7vw,12px) !important;
+        padding:3px clamp(3px,.35vw,6px) !important;
         gap:clamp(2px,.3vw,5px) !important;
+        border:1px solid var(--border);
+        border-radius:9px;
+        background:var(--surface);
+        box-sizing:border-box;
         overflow:visible !important;
         flex-wrap:nowrap !important;
         justify-content:flex-end;
