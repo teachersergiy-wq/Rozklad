@@ -628,6 +628,18 @@
         padding:3px !important;
         font-size:clamp(.8rem,1vw,1rem) !important;
       }
+
+      /* HDR-5: title scales up to 3x and period buttons to 2x on wide desktop.
+         At narrower desktop widths clamp() scales the increase down without wrapping groups. */
+      .header-main-row h1 {
+        font-size:clamp(1.15rem, 3.28vw, 3.45rem) !important;
+      }
+      .header .date-group > button {
+        font-size:clamp(.82rem, 1.56vw, 1.64rem) !important;
+      }
+      .header .view-group button {
+        font-size:clamp(.86rem, 1.64vw, 1.72rem) !important;
+      }
       .header .tools-row #sync-status {
         flex:0 0 auto;
         min-width:0;
