@@ -310,9 +310,14 @@ function dateDisplay(){
   if(!el.currentDateDisplay.contains(s))el.currentDateDisplay.appendChild(s);
   el.currentDateDisplay.title=fullLabel;
   if(window.innerWidth>640){
-    s.style.fontSize='16px';
-    if(s.scrollWidth>s.clientWidth)s.style.fontSize='14.8px';
-    if(s.scrollWidth>s.clientWidth)s.style.fontSize='13.6px';
+    /* +20% over the previous 16px baseline, then fit to the actual available field width. */
+    let fontSize=19.2;
+    s.style.fontSize=fontSize+'px';
+    const availableWidth=()=>s.clientWidth;
+    while(availableWidth()>0 && s.scrollWidth>s.clientWidth && fontSize>10){
+      fontSize=Math.max(10,fontSize-0.5);
+      s.style.fontSize=fontSize+'px';
+    }
   }
 }
 function viewButtons(){[el.viewDayBtn,el.viewWeekBtn,el.viewMonthBtn,el.viewYearBtn].forEach(x=>x.classList.remove('active'));const b=el['view'+state.view.charAt(0).toUpperCase()+state.view.slice(1)+'Btn'];if(b)b.classList.add('active');}
