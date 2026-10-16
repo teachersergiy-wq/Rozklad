@@ -517,7 +517,8 @@
         flex-wrap:nowrap !important;
         align-items:center !important;
         justify-content:flex-start !important;
-        gap:clamp(3px, .42vw, 7px) !important;
+        /* Four peer blocks use one shared gap measured between their outer edges. */
+        gap:clamp(6px, .6vw, 10px) !important;
         width:100%;
         min-width:0;
         padding:4px 0 6px;
@@ -632,13 +633,23 @@
       /* HDR-5: title scales up to 3x and period buttons to 2x on wide desktop.
          At narrower desktop widths clamp() scales the increase down without wrapping groups. */
       .header-main-row h1 {
-        font-size:clamp(1.15rem, 3.28vw, 3.45rem) !important;
+        font-size:clamp(1.035rem, 2.952vw, 3.105rem) !important; /* HDR-5 size × 0.90 */
       }
       .header .date-group > button {
-        font-size:clamp(.82rem, 1.56vw, 1.64rem) !important;
+        font-size:clamp(.738rem, 1.404vw, 1.476rem) !important; /* HDR-5 size × 0.90 */
       }
       .header .view-group button {
-        font-size:clamp(.86rem, 1.64vw, 1.72rem) !important;
+        font-size:clamp(.774rem, 1.476vw, 1.548rem) !important; /* HDR-5 size × 0.90 */
+      }
+      /* Keep the four block contours equally spaced; margins must not add hidden extra gaps. */
+      .header .view-group,
+      .header .tools-row {
+        margin-left:0 !important;
+      }
+      /* Date text starts 20% larger; app.js shrinks it only as much as needed to fit. */
+      .header #current-date-display .date-display-big {
+        font-size:19.2px;
+        min-width:0;
       }
       .header .tools-row #sync-status {
         flex:0 0 auto;
