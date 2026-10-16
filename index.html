@@ -516,8 +516,8 @@
         flex-direction:row !important;
         flex-wrap:nowrap !important;
         align-items:center !important;
-        justify-content:flex-start !important;
-        /* Four peer blocks use one shared gap measured between their outer edges. */
+        /* Keep the visible outer contours evenly distributed across the row. */
+        justify-content:space-between !important;
         gap:clamp(6px, .6vw, 10px) !important;
         width:100%;
         min-width:0;
@@ -535,7 +535,8 @@
       }
       .header .date-group {
         display:flex !important;
-        flex:1 1 0;
+        /* The navigation block must size to its content, not absorb spare width. */
+        flex:0 1 auto !important;
         min-width:0;
         width:auto;
         justify-content:center;
