@@ -14,13 +14,13 @@ const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
-  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,requestsStudentId:null,highlightedRequestSlot:null
+  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,archivedStudentSearch:'',requestsStudentId:null,highlightedRequestSlot:null
 };
 let el={};
 
 function $(id){return document.getElementById(id);}
 function cache(){
-  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-type-select report-period-select report-standard-period-group mathema-report-navigation mathema-report-period-label mathema-report-prev-btn mathema-report-next-btn mathema-report-today-btn report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list requests-student-filter close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
+  const ids='current-date-display calendar-grid today-btn prev-date-btn next-date-btn view-day-btn view-week-btn view-month-btn view-year-btn filter-toggle-btn filter-panel filter-type-select filter-student-select theme-toggle-btn sync-status sync-status-text settings-badge-count settings-btn settings-modal close-settings-modal-btn modal-add-lesson-btn modal-manage-students-btn modal-requests-btn requests-badge-count modal-reports-btn modal-audit-log-btn modal-backups-btn modal-student-link-btn edit-mode-checkbox students-info-btn students-picker-modal students-picker-list close-students-picker-modal-btn student-info-modal student-info-title student-info-fields student-info-stats student-info-list student-info-link-input student-info-copy-link-btn student-info-planned-btn student-info-history-btn close-student-info-modal-btn students-modal close-students-modal-btn show-active-students-btn show-archived-students-btn open-add-student-modal-btn students-list add-student-modal close-add-student-modal-btn new-student-name new-student-grade new-student-phone new-student-parent-name new-student-parent-phone new-student-cooperation-platform new-student-swatches save-new-student-btn lesson-modal lesson-modal-title close-lesson-modal-btn save-lesson-btn lesson-student-select lesson-student-required lesson-date-input lesson-hour-select lesson-minute-select lesson-paid-select lesson-status-select lesson-repeat-select repeat-group payment-details-group lesson-paid-amount lesson-paid-date lesson-paid-method lesson-topic-input lesson-homework-input lesson-past-notice delete-lesson-btn reports-modal close-reports-modal-btn report-type-select report-period-select report-standard-period-group mathema-report-navigation mathema-report-period-label mathema-report-prev-btn mathema-report-next-btn mathema-report-today-btn report-custom-range report-from-date report-to-date generate-report-btn report-output modal-issues-btn issues-modal issues-list close-issues-modal-btn requests-modal requests-list requests-student-filter close-requests-modal-btn audit-log-modal audit-log-list close-audit-log-modal-btn backups-modal backups-list close-backups-modal-btn student-link-modal student-link-input copy-student-link-btn close-student-link-modal-btn archived-students-search-wrap archived-students-search confirm-modal confirm-modal-message confirm-modal-cancel-btn confirm-modal-ok-btn toast-container lesson-context-menu context-menu-edit context-menu-delete context-menu-add context-menu-toggle'.split(' ');
   el={};ids.forEach(id=>{el[id]=$(id);const camel=id.replace(/-([a-z])/g,(_,ch)=>ch.toUpperCase());if(camel!==id)el[camel]=el[id];});
   // Backward-compatible aliases used by navigation handlers.
   el.prevBtn=el.prevDateBtn;
@@ -176,7 +176,7 @@ async function loadV2(){
   if(s.error)throw s.error;if(!s.data)throw new Error('Для цього облікового запису V2-розклад не знайдено.');
   state.schedule=s.data;state.scheduleId=String(s.data.id);
   const r=await Promise.all([
-    db.from('v2_students').select('*').eq('schedule_id',state.scheduleId).order('created_at'),
+    db.from('v2_students').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:true}).order('id',{ascending:true}),
     fetchAllRows(()=>db.from('v2_lessons').select('*').eq('schedule_id',state.scheduleId).order('lesson_date').order('lesson_time').order('id'),1000),
     db.from('v2_slot_overrides').select('*').eq('schedule_id',state.scheduleId).order('slot_date').order('slot_time'),
     db.from('v2_booking_requests').select('*').eq('schedule_id',state.scheduleId).order('created_at',{ascending:false}),
@@ -603,7 +603,24 @@ function renderSwatches(){el.newStudentSwatches.innerHTML='';COLORS.forEach(c=>{
 async function addStudent(){
   const name=el.newStudentName.value.trim();if(!name){toast("Введіть ім'я учня.",'error');return;}try{syncStatus('saving');const r=await db.from('v2_students').insert({schedule_id:state.scheduleId,name:name,grade:el.newStudentGrade.value.trim()||null,phone:el.newStudentPhone.value.trim()||null,parent_name:el.newStudentParentName.value.trim()||null,parent_phone:el.newStudentParentPhone.value.trim()||null,color:state.selectedNewStudentColor,cooperation_platform:el.newStudentCooperationPlatform.value||null});if(r.error)throw r.error;await loadV2();clearStudentForm();el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');renderStudents();render();toast('Учня додано.','success');}catch(e){dbFail(e);}
 }
-async function updateStudent(id,patch){try{const r=await db.from('v2_students').update(patch).eq('id',String(id)).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();renderStudents();render();}catch(e){dbFail(e);}}
+async function updateStudent(id,patch,focusField=null){
+  const scrollTop=el.studentsList?.scrollTop||0;
+  const modalContent=el.studentsModal?.querySelector('.modal-content');
+  const modalScrollTop=modalContent?.scrollTop||0;
+  try{
+    const r=await db.from('v2_students').update(patch).eq('id',String(id)).eq('schedule_id',state.scheduleId);
+    if(r.error)throw r.error;
+    await loadV2();renderStudents();render();
+    if(el.studentsList)el.studentsList.scrollTop=scrollTop;
+    if(modalContent)modalContent.scrollTop=modalScrollTop;
+    const active=document.activeElement;
+    if(focusField&&(!active||active===document.body||!active.isConnected)){
+      const item=Array.from(el.studentsList.querySelectorAll('.student-item')).find(node=>node.dataset.studentId===String(id));
+      const field=item&&item.querySelector('[data-student-field="'+focusField+'"]');
+      if(field)field.focus();
+    }
+  }catch(e){dbFail(e);}
+}
 async function fetchPendingRequestCount(studentId){
   const r=await db.from('v2_booking_requests')
     .select('id')
@@ -649,17 +666,30 @@ async function archiveStudent(s){
 }
 async function unarchiveStudent(s){if(!await confirmBox('Розархівувати учня "'+s.name+'"? Уся збережена інформація буде повернута до активного списку.'))return;try{syncStatus('saving');const r=await db.from('v2_students').update({archived_at:null}).eq('id',s.id).eq('schedule_id',state.scheduleId);if(r.error)throw r.error;await loadV2();state.showArchivedStudents=false;renderStudents();render();toast('Учня розархівовано.','success');}catch(e){dbFail(e);}}
 function renderStudents(){
-  el.studentsList.innerHTML='';
-  const list=state.showArchivedStudents?archivedStudents():activeStudents();
-  if(!list.length){el.studentsList.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:16px;">'+(state.showArchivedStudents?'Архів порожній.':'Список активних учнів порожній.')+'</div>';return;}
-  list.forEach(s=>{const edit=state.editingStudentIds.has(s.id),item=document.createElement('div');item.className='student-item';const head=document.createElement('div');head.className='student-item-header';const name=document.createElement('div');name.className='student-name-block';
-    if(edit){const i=document.createElement('input');i.className='student-edit-name-input';i.value=s.name;i.onchange=()=>updateStudent(s.id,{name:i.value.trim()||s.name});name.appendChild(i);}else{const n=document.createElement('div');n.className='student-name-line';n.textContent=s.name;name.appendChild(n);if(s.grade){const g=document.createElement('div');g.className='student-grade-line';g.textContent='Клас: '+s.grade;name.appendChild(g);}}
+  const scrollTop=el.studentsList.scrollTop;
+  if(el.showActiveStudentsBtn)el.showActiveStudentsBtn.classList.toggle('active',!state.showArchivedStudents);
+  if(el.showArchivedStudentsBtn)el.showArchivedStudentsBtn.classList.toggle('active',state.showArchivedStudents);
+  if(el.archivedStudentsSearchWrap)el.archivedStudentsSearchWrap.style.display=state.showArchivedStudents?'block':'none';
+  let list=state.showArchivedStudents?archivedStudents():activeStudents();
+  if(state.showArchivedStudents){
+    const query=String(state.archivedStudentSearch||'').trim().toLocaleLowerCase('uk-UA');
+    if(query)list=list.filter(s=>[s.name,s.grade,s.phone,s.parentName,s.parentPhone].some(v=>String(v||'').toLocaleLowerCase('uk-UA').includes(query)));
+  }
+  el.studentsList.replaceChildren();
+  if(!list.length){
+    const empty=document.createElement('div');empty.style.cssText='color:var(--text-muted);text-align:center;padding:16px;';
+    empty.textContent=state.showArchivedStudents?(state.archivedStudentSearch.trim()?'За вашим запитом нічого не знайдено.':'Архів порожній.'):'Список активних учнів порожній.';
+    el.studentsList.appendChild(empty);el.studentsList.scrollTop=scrollTop;return;
+  }
+  list.forEach(s=>{const edit=state.editingStudentIds.has(s.id),item=document.createElement('div');item.className='student-item';item.dataset.studentId=s.id;const head=document.createElement('div');head.className='student-item-header';const name=document.createElement('div');name.className='student-name-block';
+    if(edit){const i=document.createElement('input');i.className='student-edit-name-input';i.value=s.name;i.dataset.studentField='name';i.onchange=()=>updateStudent(s.id,{name:i.value.trim()||s.name},'name');name.appendChild(i);}else{const n=document.createElement('div');n.className='student-name-line';n.textContent=s.name;name.appendChild(n);if(s.grade){const g=document.createElement('div');g.className='student-grade-line';g.textContent='Клас: '+s.grade;name.appendChild(g);}}
     const card=document.createElement('button');card.className='small-btn';card.textContent='Картка';card.onclick=()=>openStudent(s.id);const editBtn=document.createElement('button');editBtn.className='small-btn '+(edit?'active':'');editBtn.textContent=edit?'✓ Готово':'✏️ Редагувати';editBtn.onclick=()=>{edit?state.editingStudentIds.delete(s.id):state.editingStudentIds.add(s.id);renderStudents();};const del=document.createElement('button');del.className=state.showArchivedStudents?'primary':'danger';del.textContent=state.showArchivedStudents?'Розархівувати':'Архівувати';del.onclick=()=>state.showArchivedStudents?unarchiveStudent(s):archiveStudent(s);head.append(name,card,editBtn,del);item.appendChild(head);
     if(s.archivedAt){const note=document.createElement('div');note.className='student-archive-note';note.style.cssText='margin-top:6px;padding:7px 9px;border-radius:8px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);font-size:.78rem;font-weight:700;line-height:1.35;';note.textContent='🔒 Архівований: перегляд історії лише до '+prettyDate(String(s.archivedAt).slice(0,10))+'. Запис і перенесення уроків недоступні.';item.appendChild(note);}
     if(!edit){const cc=document.createElement('div');cc.className='student-contact-line';const a=[];if(s.grade)a.push('🎓 '+esc(s.grade));if(s.phone)a.push('📞 '+esc(s.phone));if(s.parentName)a.push('👤 '+esc(s.parentName));if(s.parentPhone)a.push('📞 батьки: '+esc(s.parentPhone));a.push('💼 '+esc(platformLabel(s)));cc.innerHTML=a.join(' &nbsp;·&nbsp; ');item.appendChild(cc);}
-    else{const extra=document.createElement('div');extra.className='student-extra-fields';const fld=(ph,val,key)=>{const i=document.createElement('input');i.placeholder=ph;i.value=val||'';i.onchange=()=>updateStudent(s.id,{[key]:i.value.trim()});return i;};const platform=document.createElement('select');platform.innerHTML='<option value="">Платформа не вказана</option>'+COOPERATION_PLATFORMS.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');platform.value=s.cooperationPlatform||'';platform.onchange=()=>updateStudent(s.id,{cooperation_platform:platform.value||null});extra.append(fld('Клас',s.grade,'grade'),fld('Контактний телефон',s.phone,'phone'),fld("Ім'я батьків",s.parentName,'parent_name'),fld('Телефон батьків',s.parentPhone,'parent_phone'),platform);item.appendChild(extra);const lab=document.createElement('div');lab.style.cssText='font-size:.78rem;font-weight:600;color:var(--text-muted);margin-top:2px;';lab.textContent='Колір картки:';item.appendChild(lab);const sw=document.createElement('div');sw.className='student-color-swatches';COLORS.forEach(col=>{const d=document.createElement('div');d.className='swatch-dot '+(s.color===col?'active':'');d.style.backgroundColor=col;d.onclick=()=>updateStudent(s.id,{color:col});sw.appendChild(d);});item.appendChild(sw);}
+    else{const extra=document.createElement('div');extra.className='student-extra-fields';const fld=(ph,val,key)=>{const i=document.createElement('input');i.placeholder=ph;i.value=val||'';i.dataset.studentField=key;i.onchange=()=>updateStudent(s.id,{[key]:i.value.trim()},key);return i;};const platform=document.createElement('select');platform.dataset.studentField='cooperation_platform';platform.innerHTML='<option value="">Платформа не вказана</option>'+COOPERATION_PLATFORMS.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');platform.value=s.cooperationPlatform||'';platform.onchange=()=>updateStudent(s.id,{cooperation_platform:platform.value||null},'cooperation_platform');extra.append(fld('Клас',s.grade,'grade'),fld('Контактний телефон',s.phone,'phone'),fld("Ім'я батьків",s.parentName,'parent_name'),fld('Телефон батьків',s.parentPhone,'parent_phone'),platform);item.appendChild(extra);const lab=document.createElement('div');lab.style.cssText='font-size:.78rem;font-weight:600;color:var(--text-muted);margin-top:2px;';lab.textContent='Колір картки:';item.appendChild(lab);const sw=document.createElement('div');sw.className='student-color-swatches';COLORS.forEach(col=>{const d=document.createElement('div');d.className='swatch-dot '+(s.color===col?'active':'');d.style.backgroundColor=col;d.onclick=()=>updateStudent(s.id,{color:col});sw.appendChild(d);});item.appendChild(sw);}
     el.studentsList.appendChild(item);
   });
+  el.studentsList.scrollTop=scrollTop;
 }
 function studentStats(id){const ls=state.lessons.filter(l=>l.studentId===String(id)),done=ls.filter(l=>l.status==='completed');return{lessons:ls,completed:done,planned:ls.filter(l=>l.status==='planned'),completedCount:done.length,completedUnpaid:done.filter(l=>!l.paid).length,paidNotCompleted:ls.filter(l=>l.paid&&l.status!=='completed').length};}
 function personalLink(id){const s=state.students.find(x=>x.id===String(id));if(!s||!s.accessToken)return'';const u=new URL('student-schedule.html',window.location.href);u.searchParams.set('token',s.accessToken);return u.toString();}
@@ -1037,8 +1067,9 @@ function setupUI(){
   safeBind('studentInfoPlannedBtn','onclick',()=>renderStudentPlanned(state.currentInfoStudentId));
   safeBind('studentInfoCopyLinkBtn','onclick',async()=>{try{await navigator.clipboard.writeText(el.studentInfoLinkInput.value);toast('Персональне посилання скопійовано.','success');}catch(e){toast('Не вдалося скопіювати посилання.','error');}});
   safeBind('closeStudentsModalBtn','onclick',()=>el.studentsModal.classList.add('hidden'));
-  safeBind('showActiveStudentsBtn','onclick',()=>{state.showArchivedStudents=false;renderStudents();});
-  safeBind('showArchivedStudentsBtn','onclick',()=>{state.showArchivedStudents=true;renderStudents();});
+  safeBind('showActiveStudentsBtn','onclick',()=>{state.showArchivedStudents=false;el.studentsList.scrollTop=0;renderStudents();});
+  safeBind('showArchivedStudentsBtn','onclick',()=>{state.showArchivedStudents=true;el.studentsList.scrollTop=0;renderStudents();});
+  safeBind('archivedStudentsSearch','oninput',e=>{state.archivedStudentSearch=e.target.value;renderStudents();});
   safeBind('lessonStudentSelect','onchange',clearLessonStudentRequired);
   safeBind('openAddStudentModalBtn','onclick',()=>{clearStudentForm();el.studentsModal.classList.add('hidden');el.addStudentModal.classList.remove('hidden');});
   safeBind('closeAddStudentModalBtn','onclick',()=>{el.addStudentModal.classList.add('hidden');el.studentsModal.classList.remove('hidden');});
