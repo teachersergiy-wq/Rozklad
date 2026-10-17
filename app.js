@@ -998,10 +998,55 @@ function generateReport(){
   const stats=(type==='planned')?'':('<div class="stat-cards"><div class="stat-card"><b>'+done.length+'</b><span>Проведено</span></div><div class="stat-card"><b>'+paid.length+'</b><span>Оплачено · '+sum+' грн</span></div><div class="stat-card"><b>'+unpaid.length+'</b><span>Не оплачено</span></div></div>');
   el.reportOutput.innerHTML=period+stats+body;
 }
+function openIssueTarget(issue){
+  el.issuesModal.classList.add('hidden');
+  if(issue.type==='lesson'){
+    openEditLesson(issue.id);
+    return;
+  }
+  const student=state.students.find(s=>s.id===String(issue.id));
+  if(!student)return;
+  state.showArchivedStudents=!!student.archivedAt;
+  if(student.archivedAt)state.archivedStudentSearch=student.name;
+  state.editingStudentIds.add(student.id);
+  if(el.archivedStudentsSearch)el.archivedStudentsSearch.value=state.archivedStudentSearch;
+  renderStudents();
+  el.studentsModal.classList.remove('hidden');
+}
 function renderIssues(){
-  const a=[];state.lessons.forEach(l=>{if(!state.students.some(s=>s.id===l.studentId))a.push('Урок '+l.date+' '+l.time+': учня не знайдено.');if(pastDate(l.date)&&l.status==='planned')a.push('Урок '+prettyDate(l.date)+', '+l.time+': дата минула, але статус — заплановано.');if(l.status==='completed'&&!l.topic)a.push('Урок '+prettyDate(l.date)+', '+l.time+': не вказано тему.');});
-  state.students.forEach(s=>{const m=[];if(!s.grade)m.push('клас');if(!s.phone)m.push('телефон');if(!s.parentName)m.push("ім'я батьків");if(!s.parentPhone)m.push('телефон батьків');if(m.length)a.push('Учень "'+s.name+'": '+m.join(', ')+'.');});
-  el.issuesList.innerHTML=a.length?a.map(x=>'<div class="issue-item">'+esc(x)+'</div>').join(''):'<div class="issue-item ok">✓ Помилок та незаповнених полів не знайдено.</div>';
+  const issues=[];
+  state.lessons.forEach(l=>{
+    if(!state.students.some(s=>s.id===l.studentId))issues.push({text:'Урок '+l.date+' '+l.time+': учня не знайдено.',type:'lesson',id:l.id});
+    if(pastDate(l.date)&&l.status==='planned')issues.push({text:'Урок '+prettyDate(l.date)+', '+l.time+': дата минула, але статус — заплановано.',type:'lesson',id:l.id});
+    if(l.status==='completed'&&!l.topic)issues.push({text:'Урок '+prettyDate(l.date)+', '+l.time+': не вказано тему.',type:'lesson',id:l.id});
+  });
+  state.students.forEach(s=>{
+    const missing=[];
+    if(!s.grade)missing.push('клас');
+    if(!s.phone)missing.push('телефон');
+    if(!s.parentName)missing.push("ім'я батьків");
+    if(!s.parentPhone)missing.push('телефон батьків');
+    if(missing.length)issues.push({text:'Учень "'+s.name+'": '+missing.join(', ')+'.',type:'student',id:s.id});
+  });
+  el.issuesList.replaceChildren();
+  if(!issues.length){
+    const ok=document.createElement('div');ok.className='issue-item ok';ok.textContent='✓ Помилок та незаповнених полів не знайдено.';el.issuesList.appendChild(ok);return;
+  }
+  issues.forEach(issue=>{
+    const item=document.createElement('div');
+    item.className='issue-item';
+    item.textContent=issue.text;
+    item.title='Натисніть, щоб відкрити картку для виправлення';
+    item.setAttribute('role','button');
+    item.setAttribute('tabindex','0');
+    item.setAttribute('aria-label',issue.text+' Натисніть, щоб відкрити картку для виправлення.');
+    item.style.cursor='pointer';
+    item.addEventListener('click',()=>openIssueTarget(issue));
+    item.addEventListener('keydown',event=>{
+      if(event.key==='Enter'||event.key===' '){event.preventDefault();openIssueTarget(issue);}
+    });
+    el.issuesList.appendChild(item);
+  });
 }
 function hideContext(){el.lessonContextMenu.classList.add('hidden');state.contextLessonId=null;state.contextSlot=null;}
 function showContext(x,y,a){state.contextLessonId=a.lessonId?String(a.lessonId):null;state.contextSlot=a.dateISO&&a.hour!=null?{dateISO:a.dateISO,hour:a.hour}:null;const l=state.contextLessonId?state.lessons.find(z=>z.id===state.contextLessonId):null;el.contextMenuEdit.style.display=l?'block':'none';el.contextMenuDelete.style.display=l?'block':'none';el.contextMenuAdd.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuToggle.style.display=!l&&state.contextSlot?'block':'none';el.contextMenuDelete.disabled=!!l&&l.status!=='planned';el.lessonContextMenu.classList.remove('hidden');const r=el.lessonContextMenu.getBoundingClientRect(),mx=Math.max(4,innerWidth-r.width-4),my=Math.max(4,innerHeight-r.height-4);el.lessonContextMenu.style.left=Math.min(Math.max(4,x),mx)+'px';el.lessonContextMenu.style.top=Math.min(Math.max(4,y),my)+'px';}
