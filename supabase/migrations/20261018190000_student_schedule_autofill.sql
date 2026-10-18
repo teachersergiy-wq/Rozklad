@@ -297,6 +297,8 @@ declare
   v_generated integer := 0;
   v_enabled boolean;
   v_today date;
+  v_seen_slots text[] := array[]::text[];
+  v_slot text;
 begin
   select * into v_student
     from public.v2_students
@@ -319,23 +321,67 @@ begin
     raise exception using errcode='22023', message='RULES_MUST_BE_AN_ARRAY';
   end if;
 
-  update public.v2_student_schedule_rules
+  -- Validate the complete replacement first so invalid or duplicate entries
+  -- cannot deactivate the current schedule.
+  for v_rule in select value from jsonb_array_elements(p_rules)
+  loop
+    v_weekday := nullif(v_rule->>'weekday', '')::integer;
+    v_time := nullif(v_rule->>'time', '')::time;
+    if v_weekday is null or v_weekday not between 1 and 7 or v_time is null then
+      raise exception using errcode='22023', message='INVALID_WEEKDAY_OR_TIME';
+    end if;
+
+    v_slot := v_weekday::text || '|' || v_time::text;
+    if v_slot = any(v_seen_slots) then
+      raise exception using errcode='22023', message='DUPLICATE_WEEKDAY_AND_TIME';
+    end if;
+    v_seen_slots := array_append(v_seen_slots, v_slot);
+    v_count := v_count + 1;
+  end loop;
+
+  -- Keep existing active rules for unchanged weekday/time slots. This preserves
+  -- their planned lessons and avoids creating duplicate old/new choices.
+  update public.v2_student_schedule_rules existing_rule
+     set starts_on = p_start_date
+   where existing_rule.student_id = p_student_id
+     and existing_rule.schedule_id = v_student.schedule_id
+     and existing_rule.is_active
+     and exists (
+       select 1
+         from jsonb_array_elements(p_rules) incoming(value)
+        where (incoming.value->>'weekday')::integer = existing_rule.weekday
+          and (incoming.value->>'time')::time = existing_rule.lesson_time
+     );
+
+  update public.v2_student_schedule_rules existing_rule
      set is_active = false, deactivated_at = now()
-   where student_id = p_student_id and is_active;
+   where existing_rule.student_id = p_student_id
+     and existing_rule.schedule_id = v_student.schedule_id
+     and existing_rule.is_active
+     and not exists (
+       select 1
+         from jsonb_array_elements(p_rules) incoming(value)
+        where (incoming.value->>'weekday')::integer = existing_rule.weekday
+          and (incoming.value->>'time')::time = existing_rule.lesson_time
+     );
 
   for v_rule in select value from jsonb_array_elements(p_rules)
   loop
     v_weekday := (v_rule->>'weekday')::integer;
     v_time := (v_rule->>'time')::time;
-    if v_weekday < 1 or v_weekday > 7 or v_time is null then
-      raise exception using errcode='22023', message='INVALID_WEEKDAY_OR_TIME';
+    if not exists (
+      select 1 from public.v2_student_schedule_rules existing_rule
+       where existing_rule.student_id = p_student_id
+         and existing_rule.schedule_id = v_student.schedule_id
+         and existing_rule.is_active
+         and existing_rule.weekday = v_weekday
+         and existing_rule.lesson_time = v_time
+    ) then
+      insert into public.v2_student_schedule_rules
+        (schedule_id, student_id, weekday, lesson_time, starts_on)
+      values
+        (v_student.schedule_id, p_student_id, v_weekday, v_time, p_start_date);
     end if;
-
-    insert into public.v2_student_schedule_rules
-      (schedule_id, student_id, weekday, lesson_time, starts_on)
-    values
-      (v_student.schedule_id, p_student_id, v_weekday, v_time, p_start_date);
-    v_count := v_count + 1;
   end loop;
 
   select coalesce(auto_schedule_enabled, false) into v_enabled
