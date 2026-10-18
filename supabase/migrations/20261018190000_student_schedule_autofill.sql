@@ -142,6 +142,7 @@ begin
     left join public.v2_schedule_settings ss on ss.schedule_id = s.id
    where s.id = v_rule.schedule_id;
   if not found or not v_enabled then return null; end if;
+  if p_occurrence_date < (now() at time zone v_schedule_timezone)::date then return null; end if;
 
   if exists (
     select 1 from public.v2_students st
@@ -434,13 +435,14 @@ security definer
 set search_path = public
 as $$
 begin
-  update public.v2_schedule_conflicts c
-     set resolved_at = now()
-   where c.conflict_kind = 'occupied_slot'
-     and c.resolved_at is null
-     and (c.lesson_id = case when tg_op = 'DELETE' then old.id else new.id end
-          or c.conflicting_lesson_id = case when tg_op = 'DELETE' then old.id else new.id end)
-     and (
+  begin
+    update public.v2_schedule_conflicts c
+       set resolved_at = now()
+     where c.conflict_kind = 'occupied_slot'
+       and c.resolved_at is null
+       and (c.lesson_id = case when tg_op = 'DELETE' then old.id else new.id end
+            or c.conflicting_lesson_id = case when tg_op = 'DELETE' then old.id else new.id end)
+       and (
        not exists (select 1 from public.v2_lessons where id = c.lesson_id and status <> 'cancelled')
        or not exists (select 1 from public.v2_lessons where id = c.conflicting_lesson_id and status <> 'cancelled')
        or not exists (
@@ -449,10 +451,13 @@ begin
          where a.id = c.lesson_id and a.lesson_date = b.lesson_date and a.lesson_time = b.lesson_time
            and a.status <> 'cancelled' and b.status <> 'cancelled'
        )
-     );
+       );
+  exception when others then
+    raise warning 'Could not refresh schedule conflicts: %', sqlerrm;
+  end;
   return null;
 end;
-$$;
+$;
 
 create or replace function public.v2_autofill_completed_schedule_lesson()
 returns trigger
@@ -463,22 +468,28 @@ as $$
 declare
   v_enabled boolean;
 begin
-  if old.status is distinct from 'completed' and new.status = 'completed'
-     and new.schedule_rule_id is not null
-     and new.schedule_occurrence_date is not null then
-    select coalesce(auto_schedule_enabled, false) into v_enabled
-      from public.v2_schedule_settings where schedule_id = new.schedule_id;
-    if coalesce(v_enabled, false) then
-      begin
+  begin
+    if old.status is distinct from 'completed' and new.status = 'completed'
+       and new.schedule_rule_id is not null
+       and new.schedule_occurrence_date is not null then
+      select coalesce(auto_schedule_enabled, false) into v_enabled
+        from public.v2_schedule_settings where schedule_id = new.schedule_id;
+      if coalesce(v_enabled, false) then
         perform public.v2_create_student_schedule_occurrence(
           new.schedule_rule_id, new.schedule_occurrence_date + 14
         );
-      exception when others then
+      end if;
+    end if;
+  exception when others then
+    begin
+      if new.schedule_rule_id is not null and new.schedule_occurrence_date is not null then
         perform public.v2_schedule_log_error(new.schedule_rule_id,
           new.schedule_occurrence_date + 14, sqlerrm);
-      end;
-    end if;
-  end if;
+      end if;
+    exception when others then
+      raise warning 'Could not record student schedule generation failure: %', sqlerrm;
+    end;
+  end;
   return new;
 end;
 $$;
