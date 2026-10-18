@@ -457,7 +457,7 @@ begin
   end;
   return null;
 end;
-$;
+$$;
 
 create or replace function public.v2_autofill_completed_schedule_lesson()
 returns trigger
