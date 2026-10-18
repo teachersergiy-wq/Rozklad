@@ -452,6 +452,31 @@ begin
            and a.status <> 'cancelled' and b.status <> 'cancelled'
        )
        );
+
+    -- An old/new choice is no longer valid once either lesson is cancelled
+    -- or removed. Resolve it automatically and leave the remaining lesson intact.
+    update public.v2_schedule_conflicts c
+       set resolved_at = now()
+     where c.conflict_kind = 'old_new'
+       and c.resolved_at is null
+       and (
+         c.old_lesson_id = case when tg_op = 'DELETE' then old.id else new.id end
+         or c.new_lesson_id = case when tg_op = 'DELETE' then old.id else new.id end
+         or c.old_lesson_id is null
+         or c.new_lesson_id is null
+       )
+       and (
+         c.old_lesson_id is null
+         or not exists (
+           select 1 from public.v2_lessons
+            where id = c.old_lesson_id and status <> 'cancelled'
+         )
+         or c.new_lesson_id is null
+         or not exists (
+           select 1 from public.v2_lessons
+            where id = c.new_lesson_id and status <> 'cancelled'
+         )
+       );
   exception when others then
     raise warning 'Could not refresh schedule conflicts: %', sqlerrm;
   end;
@@ -549,9 +574,28 @@ begin
            and a.status <> 'cancelled' and b.status <> 'cancelled'
        )
      );
+
+  -- Reconcile old/new conflicts in case a lesson was removed and its FK was
+  -- cleared after the lesson trigger ran.
+  update public.v2_schedule_conflicts c
+     set resolved_at = now()
+   where c.conflict_kind = 'old_new'
+     and c.resolved_at is null
+     and (
+       c.old_lesson_id is null
+       or c.new_lesson_id is null
+       or not exists (
+         select 1 from public.v2_lessons
+          where id = c.old_lesson_id and status <> 'cancelled'
+       )
+       or not exists (
+         select 1 from public.v2_lessons
+          where id = c.new_lesson_id and status <> 'cancelled'
+       )
+     );
   return v_count;
 end;
-$$;
+$;
 
 drop trigger if exists v2_autofill_completed_schedule_lesson on public.v2_lessons;
 create trigger v2_autofill_completed_schedule_lesson
