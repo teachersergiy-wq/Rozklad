@@ -182,10 +182,20 @@ begin
       join public.v2_student_schedule_rules old_rule on old_rule.id = l.schedule_rule_id
      where l.student_id = v_rule.student_id
        and l.schedule_id = v_rule.schedule_id
-       and l.schedule_occurrence_date = p_occurrence_date
+       and date_trunc('week', l.schedule_occurrence_date::timestamp)
+           = date_trunc('week', p_occurrence_date::timestamp)
        and l.id <> v_lesson_id
        and old_rule.is_active = false
        and l.status = 'planned'
+       and not exists (
+         select 1 from public.v2_schedule_conflicts c
+          where c.conflict_kind = 'old_new'
+            and c.resolved_at is null
+            and c.old_lesson_id = l.id
+       )
+     order by abs(l.schedule_occurrence_date - p_occurrence_date),
+              l.schedule_occurrence_date, l.lesson_time
+     limit 1
   loop
     insert into public.v2_schedule_conflicts
       (schedule_id, student_id, conflict_kind, occurrence_date, slot_time,
