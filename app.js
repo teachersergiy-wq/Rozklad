@@ -700,7 +700,16 @@ function openStudent(id){
   const debtNotice=st.completedUnpaid>0
     ? '<div class="student-debt-notice unpaid">⚠️ Заборгованість: <b>'+st.completedUnpaid+'</b> проведених уроків не оплачено.</div>'
     : '<div class="student-debt-notice clear">✓ Заборгованості за проведеними уроками немає.</div>';
-  el.studentInfoStats.innerHTML=debtNotice+'<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);el.studentInfoModal.classList.remove('hidden');
+  el.studentInfoStats.innerHTML=debtNotice+'<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);
+  if(window.StudentScheduleFeature){
+    window.StudentScheduleFeature.mount({
+      container:$('student-schedule-feature'),db,scheduleId:state.scheduleId,student:s,
+      lessons:state.lessons,students:state.students,confirmAction:confirmBox,
+      onChanged:async studentId=>{await loadV2();render();openStudent(studentId);},
+      onOpenLesson:async lessonId=>{await loadV2();el.studentInfoModal.classList.add('hidden');openEditLesson(lessonId);}
+    });
+  }
+  el.studentInfoModal.classList.remove('hidden');
 }
 function renderStudentsPicker(){
   el.studentsPickerList.innerHTML='';activeStudents().forEach(s=>{const x=document.createElement('div');x.className='clickable-list-item';x.style.backgroundColor=s.color||COLORS[0];x.innerHTML='<span>'+esc(s.name)+'</span><span style="font-weight:500;font-size:.8rem;color:#475569;">'+esc(s.grade||'')+'</span>';x.onclick=()=>{el.studentsPickerModal.classList.add('hidden');openStudent(s.id);};el.studentsPickerList.appendChild(x);});
