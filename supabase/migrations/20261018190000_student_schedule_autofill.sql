@@ -70,27 +70,24 @@ alter table public.v2_schedule_settings enable row level security;
 alter table public.v2_student_schedule_rules enable row level security;
 alter table public.v2_schedule_conflicts enable row level security;
 
-grant select, insert, update, delete on public.v2_schedule_settings to authenticated;
-grant select, insert, update, delete on public.v2_student_schedule_rules to authenticated;
-grant select, insert, update, delete on public.v2_schedule_conflicts to authenticated;
+grant select on public.v2_schedule_settings to authenticated;
+grant select on public.v2_student_schedule_rules to authenticated;
+grant select on public.v2_schedule_conflicts to authenticated;
 
 drop policy if exists teacher_all_v2_schedule_settings on public.v2_schedule_settings;
-create policy teacher_all_v2_schedule_settings on public.v2_schedule_settings
-  for all to authenticated
-  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()))
-  with check (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
+create policy teacher_read_v2_schedule_settings on public.v2_schedule_settings
+  for select to authenticated
+  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
 
 drop policy if exists teacher_all_v2_student_schedule_rules on public.v2_student_schedule_rules;
-create policy teacher_all_v2_student_schedule_rules on public.v2_student_schedule_rules
-  for all to authenticated
-  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()))
-  with check (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
+create policy teacher_read_v2_student_schedule_rules on public.v2_student_schedule_rules
+  for select to authenticated
+  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
 
 drop policy if exists teacher_all_v2_schedule_conflicts on public.v2_schedule_conflicts;
-create policy teacher_all_v2_schedule_conflicts on public.v2_schedule_conflicts
-  for all to authenticated
-  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()))
-  with check (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
+create policy teacher_read_v2_schedule_conflicts on public.v2_schedule_conflicts
+  for select to authenticated
+  using (schedule_id in (select id from public.v2_schedules where owner_id = auth.uid()));
 
 create or replace function public.v2_schedule_log_error(
   p_rule_id uuid,
