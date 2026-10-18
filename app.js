@@ -1019,6 +1019,7 @@ function renderIssues(){
     if(!state.students.some(s=>s.id===l.studentId))issues.push({text:'Урок '+l.date+' '+l.time+': учня не знайдено.',type:'lesson',id:l.id});
     if(pastDate(l.date)&&l.status==='planned')issues.push({text:'Урок '+prettyDate(l.date)+', '+l.time+': дата минула, але статус — заплановано.',type:'lesson',id:l.id});
     if(l.status==='completed'&&!l.topic)issues.push({text:'Урок '+prettyDate(l.date)+', '+l.time+': не вказано тему.',type:'lesson',id:l.id});
+    if(l.status==='completed'&&l.paidAmount==null)issues.push({text:'Урок '+prettyDate(l.date)+', '+l.time+': не вказано ціну.',type:'lesson',id:l.id});
   });
   state.students.forEach(s=>{
     const missing=[];
