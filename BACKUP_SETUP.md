@@ -149,18 +149,20 @@ jobs:
    ```powershell
    $env:RESTORE_DB_URL = "<connection string нового тимчасового проєкту>"
    ```
-2. Завантажте обидва файли з потрібного приватного Release. Перевірте SHA-256 із файлу `.sha256` через:
+2. Завантажте обидва файли з потрібного приватного Release. Перевірте, що SHA-256 збігається з вмістом відповідного файлу `.sha256`:
    ```powershell
-   Get-FileHash .\\rozklad-db-<timestamp>.tar.gz.age -Algorithm SHA256
+   $expected = (Get-Content .\rozklad-db-<timestamp>.tar.gz.age.sha256 -Raw).Trim()
+   $actual = (Get-FileHash .\rozklad-db-<timestamp>.tar.gz.age -Algorithm SHA256).Hash.ToLowerInvariant()
+   if ($actual -ne $expected) { throw "Checksum does not match." }
    ```
 3. Розшифруйте копію локально, використовуючи приватний ключ:
    ```powershell
-   age --decrypt --identity "$env:USERPROFILE\rozklad-backup-age.txt" --output .\\restore.tar.gz .\\rozklad-db-<timestamp>.tar.gz.age
-   tar -xzf .\\restore.tar.gz
+   age --decrypt --identity "$env:USERPROFILE\rozklad-backup-age.txt" --output .\restore.tar.gz .\rozklad-db-<timestamp>.tar.gz.age
+   tar -xzf .\restore.tar.gz
    ```
 4. Після встановлення PostgreSQL client tools відновіть лише в порожній тимчасовий проєкт:
    ```powershell
-   psql --single-transaction --variable ON_ERROR_STOP=1 --file .\\roles.sql --file .\\schema.sql --command "SET session_replication_role = replica" --file .\\data.sql --dbname $env:RESTORE_DB_URL
+   psql --single-transaction --variable ON_ERROR_STOP=1 --file .\roles.sql --file .\schema.sql --command "SET session_replication_role = replica" --file .\data.sql --dbname $env:RESTORE_DB_URL
    ```
 5. Перевірте схеми, таблиці та кількість записів у таблицях V2 на тимчасовому проєкті. Порівняйте їх із робочим проєктом на момент знімка. Не переносьте тестові дані у робочий Rozklad.
 6. Видаліть тимчасовий Supabase-проєкт після завершення перевірки, якщо він більше не потрібен.
