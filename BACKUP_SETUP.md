@@ -1,6 +1,6 @@
 # Зовнішні резервні копії Supabase
 
-Це інструкція і шаблон для приватного репозиторію \`teachersergiy-wq/rozklad-backups\`. Шаблон навмисно не розміщений у \`.github/workflows\` репозиторію Rozklad: автоматичне завдання має працювати тільки в приватному сховищі.
+Це інструкція і шаблон для приватного репозиторію `teachersergiy-wq/rozklad-backups`. Шаблон навмисно не розміщений у `.github/workflows` репозиторію Rozklad: автоматичне завдання має працювати тільки в приватному сховищі.
 
 ## Що буде збережено
 
@@ -8,28 +8,28 @@ Workflow раз на день створюватиме логічний дамп
 
 Workflow перевіряє через GitHub API, що репозиторій призначення справді приватний. Якщо перевірка не пройде, дамп не запускається. У публічний Rozklad жодні копії даних не записуються.
 
-Це резервна копія PostgreSQL, а не повний експорт усіх налаштувань Supabase: CLI виключає керовані схеми Auth і Storage, а Edge Functions, налаштування входу та API secrets потребують окремого збереження. У перевіреному проєкті зараз немає Storage buckets, але є активна Edge Function \`ai-public-context\`. Її код треба зберігати окремо для повного відновлення.
+Це резервна копія PostgreSQL, а не повний експорт усіх налаштувань Supabase: CLI виключає керовані схеми Auth і Storage, а Edge Functions, налаштування входу та API secrets потребують окремого збереження. У перевіреному проєкті зараз немає Storage buckets, але є активна Edge Function `ai-public-context`. Її код треба зберігати окремо для повного відновлення.
 
 ## Потрібні налаштування
 
-1. Створіть приватний GitHub-репозиторій \`teachersergiy-wq/rozklad-backups\`. Увімкніть GitHub Actions для нього.
+1. Створіть приватний GitHub-репозиторій `teachersergiy-wq/rozklad-backups`. Увімкніть GitHub Actions для нього.
 2. На своєму комп’ютері встановіть офіційний age і створіть пару ключів:
-   \`\`\`powershell
+   ```powershell
    age-keygen -o "$env:USERPROFILE\rozklad-backup-age.txt"
-   \`\`\`
-   У файлі буде приватний ключ, а рядок-коментар міститиме публічний ключ \`age1…\`. Збережіть файл із приватним ключем у двох безпечних офлайн-місцях. Не надсилайте його в чат і не додавайте до GitHub. Якщо втратити приватний ключ, розшифрувати копії буде неможливо.
+   ```
+   У файлі буде приватний ключ, а рядок-коментар міститиме публічний ключ `age1…`. Збережіть файл із приватним ключем у двох безпечних офлайн-місцях. Не надсилайте його в чат і не додавайте до GitHub. Якщо втратити приватний ключ, розшифрувати копії буде неможливо.
 3. У приватному репозиторії відкрийте **Settings → Secrets and variables → Actions**:
-   - створіть **secret** \`SUPABASE_DB_URL\` зі строкою підключення до PostgreSQL із Supabase **Connect**. Використайте Session pooler (порт 5432) або Direct connection, якщо ваша мережа підтримує IPv6. Не надсилайте пароль у чат;
-   - створіть **variable** \`AGE_RECIPIENT\` зі значенням публічного ключа \`age1…\`. Це не секрет, приватний ключ до workflow не передається.
-4. У приватному репозиторії створіть файл \`.github/workflows/db-backup.yml\` і вставте шаблон нижче.
+   - створіть **secret** `SUPABASE_DB_URL` зі строкою підключення до PostgreSQL із Supabase **Connect**. Використайте Session pooler (порт 5432) або Direct connection, якщо ваша мережа підтримує IPv6. Не надсилайте пароль у чат;
+   - створіть **variable** `AGE_RECIPIENT` зі значенням публічного ключа `age1…`. Це не секрет, приватний ключ до workflow не передається.
+4. У приватному репозиторії створіть файл `.github/workflows/db-backup.yml` і вставте шаблон нижче.
 5. Відкрийте **Actions → Encrypted Supabase database backup → Run workflow** і запустіть першу копію вручну.
-6. Перевірте, що запуск завершився успішно, а в приватному репозиторії з’явився Release з двома файлами: \`.tar.gz.age\` та \`.sha256\`. Запланований запуск відбуватиметься щодня о 03:17 UTC.
+6. Перевірте, що запуск завершився успішно, а в приватному репозиторії з’явився Release з двома файлами: `.tar.gz.age` та `.sha256`. Запланований запуск відбуватиметься щодня о 03:17 UTC.
 7. Зробіть пробне відновлення лише в окремий тимчасовий Supabase-проєкт. Не запускайте restore на робочому Rozklad.
 8. Після успішної перевірки узгодьте строк зберігання старих Release. Шаблон нічого автоматично не видаляє.
 
 ## Workflow-шаблон
 
-\`\`\`yaml
+```yaml
 name: Encrypted Supabase database backup
 
 on:
@@ -49,13 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SUPABASE_DB_URL: \${{ secrets.SUPABASE_DB_URL }}
-      AGE_RECIPIENT: \${{ vars.AGE_RECIPIENT }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      AGE_RECIPIENT: ${{ vars.AGE_RECIPIENT }}
 
     steps:
       - name: Check private destination and settings
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -119,10 +119,10 @@ jobs:
 
       - name: Publish encrypted backup as a private Release
         env:
-          GH_TOKEN: \${{ github.token }}
-          BACKUP_TIMESTAMP: \${{ steps.dump.outputs.timestamp }}
-          ENCRYPTED_ARCHIVE: \${{ steps.dump.outputs.encrypted_archive }}
-          CHECKSUM_FILE: \${{ steps.dump.outputs.checksum_file }}
+          GH_TOKEN: ${{ github.token }}
+          BACKUP_TIMESTAMP: ${{ steps.dump.outputs.timestamp }}
+          ENCRYPTED_ARCHIVE: ${{ steps.dump.outputs.encrypted_archive }}
+          CHECKSUM_FILE: ${{ steps.dump.outputs.checksum_file }}
         shell: bash
         run: |
           set -euo pipefail
@@ -136,32 +136,32 @@ jobs:
       - name: Remove encrypted temporary files
         if: always()
         env:
-          ENCRYPTED_ARCHIVE: \${{ steps.dump.outputs.encrypted_archive }}
-          CHECKSUM_FILE: \${{ steps.dump.outputs.checksum_file }}
+          ENCRYPTED_ARCHIVE: ${{ steps.dump.outputs.encrypted_archive }}
+          CHECKSUM_FILE: ${{ steps.dump.outputs.checksum_file }}
         shell: bash
         run: |
           rm -f -- "$ENCRYPTED_ARCHIVE" "$CHECKSUM_FILE"
-\`\`\`
+```
 
 ## Перевірка відновлення
 
 1. Створіть окремий тимчасовий Supabase-проєкт і скопіюйте його connection string у локальну змінну PowerShell. Не використовуйте connection string робочого проєкту:
-   \`\`\`powershell
+   ```powershell
    $env:RESTORE_DB_URL = "<connection string нового тимчасового проєкту>"
-   \`\`\`
-2. Завантажте обидва файли з потрібного приватного Release. Перевірте SHA-256 із файлу \`.sha256\` через:
-   \`\`\`powershell
+   ```
+2. Завантажте обидва файли з потрібного приватного Release. Перевірте SHA-256 із файлу `.sha256` через:
+   ```powershell
    Get-FileHash .\\rozklad-db-<timestamp>.tar.gz.age -Algorithm SHA256
-   \`\`\`
+   ```
 3. Розшифруйте копію локально, використовуючи приватний ключ:
-   \`\`\`powershell
+   ```powershell
    age --decrypt --identity "$env:USERPROFILE\rozklad-backup-age.txt" --output .\\restore.tar.gz .\\rozklad-db-<timestamp>.tar.gz.age
    tar -xzf .\\restore.tar.gz
-   \`\`\`
+   ```
 4. Після встановлення PostgreSQL client tools відновіть лише в порожній тимчасовий проєкт:
-   \`\`\`powershell
+   ```powershell
    psql --single-transaction --variable ON_ERROR_STOP=1 --file .\\roles.sql --file .\\schema.sql --command "SET session_replication_role = replica" --file .\\data.sql --dbname $env:RESTORE_DB_URL
-   \`\`\`
+   ```
 5. Перевірте схеми, таблиці та кількість записів у таблицях V2 на тимчасовому проєкті. Порівняйте їх із робочим проєктом на момент знімка. Не переносьте тестові дані у робочий Rozklad.
 6. Видаліть тимчасовий Supabase-проєкт після завершення перевірки, якщо він більше не потрібен.
 
