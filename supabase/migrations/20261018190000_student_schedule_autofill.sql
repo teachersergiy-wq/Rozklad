@@ -70,6 +70,10 @@ alter table public.v2_schedule_settings enable row level security;
 alter table public.v2_student_schedule_rules enable row level security;
 alter table public.v2_schedule_conflicts enable row level security;
 
+grant select, insert, update, delete on public.v2_schedule_settings to authenticated;
+grant select, insert, update, delete on public.v2_student_schedule_rules to authenticated;
+grant select, insert, update, delete on public.v2_schedule_conflicts to authenticated;
+
 drop policy if exists teacher_all_v2_schedule_settings on public.v2_schedule_settings;
 create policy teacher_all_v2_schedule_settings on public.v2_schedule_settings
   for all to authenticated
@@ -233,17 +237,18 @@ declare
   v_today date;
   v_through date;
   v_count integer := 0;
+  v_timezone text;
   v_rule record;
   v_date date;
   v_id uuid;
 begin
-  select timezone into v_rule
+  select s.timezone into v_timezone
     from public.v2_schedules s
     join public.v2_students st on st.schedule_id = s.id
    where st.id = p_student_id and st.schedule_id = s.id and st.archived_at is null;
   if not found then return 0; end if;
 
-  v_today := (now() at time zone v_rule.timezone)::date;
+  v_today := (now() at time zone v_timezone)::date;
   v_through := v_today + 14;
 
   for v_rule in
@@ -283,6 +288,7 @@ declare
   v_count integer := 0;
   v_generated integer := 0;
   v_enabled boolean;
+  v_today date;
 begin
   select * into v_student
     from public.v2_students
@@ -292,12 +298,13 @@ begin
     raise exception using errcode='P0001', message='STUDENT_NOT_ACTIVE';
   end if;
 
-  select owner_id into v_owner from public.v2_schedules where id = v_student.schedule_id;
+  select owner_id, (now() at time zone timezone)::date into v_owner, v_today
+    from public.v2_schedules where id = v_student.schedule_id;
   if v_owner is distinct from auth.uid() then
     raise exception using errcode='42501', message='NOT_SCHEDULE_OWNER';
   end if;
 
-  if p_start_date is null or p_start_date < current_date then
+  if p_start_date is null or p_start_date < v_today then
     raise exception using errcode='22023', message='START_DATE_MUST_BE_TODAY_OR_LATER';
   end if;
   if p_rules is null or jsonb_typeof(p_rules) <> 'array' then
@@ -424,7 +431,8 @@ begin
      set resolved_at = now()
    where c.conflict_kind = 'occupied_slot'
      and c.resolved_at is null
-     and (c.lesson_id = coalesce(new.id, old.id) or c.conflicting_lesson_id = coalesce(new.id, old.id))
+     and (c.lesson_id = case when tg_op = 'DELETE' then old.id else new.id end
+          or c.conflicting_lesson_id = case when tg_op = 'DELETE' then old.id else new.id end)
      and (
        not exists (select 1 from public.v2_lessons where id = c.lesson_id and status <> 'cancelled')
        or not exists (select 1 from public.v2_lessons where id = c.conflicting_lesson_id and status <> 'cancelled')
@@ -435,7 +443,7 @@ begin
            and a.status <> 'cancelled' and b.status <> 'cancelled'
        )
      );
-  return coalesce(new, old);
+  return null;
 end;
 $$;
 
