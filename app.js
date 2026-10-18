@@ -14,7 +14,7 @@ const state={
   user:null,schedule:null,scheduleId:null,students:[],lessons:[],availableSlots:[],blockedSlots:[],
   bookingRequests:[],auditLog:[],backups:[],teacherNotifications:[],currentDate:new Date(),view:'day',filterType:'all',reportSortKey:'name',reportSortDir:1,mathemaPeriodOffset:null,mathemaDetailSortKey:'date',mathemaDetailSortDir:1,
   filterStudentId:null,isEditMode:false,editingLessonId:null,currentInfoStudentId:null,filterOpen:false,
-  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),contextLessonId:null,contextSlot:null,showArchivedStudents:false,archivedStudentSearch:'',requestsStudentId:null,highlightedRequestSlot:null
+  selectedNewStudentColor:COLORS[0],editingStudentIds:new Set(),openScheduleStudentId:null,contextLessonId:null,contextSlot:null,showArchivedStudents:false,archivedStudentSearch:'',requestsStudentId:null,highlightedRequestSlot:null
 };
 let el={};
 
@@ -687,6 +687,18 @@ function renderStudents(){
     if(s.archivedAt){const note=document.createElement('div');note.className='student-archive-note';note.style.cssText='margin-top:6px;padding:7px 9px;border-radius:8px;border:1px solid var(--pending-border);background:var(--pending-bg);color:var(--pending-text);font-size:.78rem;font-weight:700;line-height:1.35;';note.textContent='🔒 Архівований: перегляд історії лише до '+prettyDate(String(s.archivedAt).slice(0,10))+'. Запис і перенесення уроків недоступні.';item.appendChild(note);}
     if(!edit){const cc=document.createElement('div');cc.className='student-contact-line';const a=[];if(s.grade)a.push('🎓 '+esc(s.grade));if(s.phone)a.push('📞 '+esc(s.phone));if(s.parentName)a.push('👤 '+esc(s.parentName));if(s.parentPhone)a.push('📞 батьки: '+esc(s.parentPhone));a.push('💼 '+esc(platformLabel(s)));cc.innerHTML=a.join(' &nbsp;·&nbsp; ');item.appendChild(cc);}
     else{const extra=document.createElement('div');extra.className='student-extra-fields';const fld=(ph,val,key)=>{const i=document.createElement('input');i.placeholder=ph;i.value=val||'';i.dataset.studentField=key;i.onchange=()=>updateStudent(s.id,{[key]:i.value.trim()},key);return i;};const platform=document.createElement('select');platform.dataset.studentField='cooperation_platform';platform.innerHTML='<option value="">Платформа не вказана</option>'+COOPERATION_PLATFORMS.map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');platform.value=s.cooperationPlatform||'';platform.onchange=()=>updateStudent(s.id,{cooperation_platform:platform.value||null},'cooperation_platform');extra.append(fld('Клас',s.grade,'grade'),fld('Контактний телефон',s.phone,'phone'),fld("Ім'я батьків",s.parentName,'parent_name'),fld('Телефон батьків',s.parentPhone,'parent_phone'),platform);item.appendChild(extra);const lab=document.createElement('div');lab.style.cssText='font-size:.78rem;font-weight:600;color:var(--text-muted);margin-top:2px;';lab.textContent='Колір картки:';item.appendChild(lab);const sw=document.createElement('div');sw.className='student-color-swatches';COLORS.forEach(col=>{const d=document.createElement('div');d.className='swatch-dot '+(s.color===col?'active':'');d.style.backgroundColor=col;d.onclick=()=>updateStudent(s.id,{color:col});sw.appendChild(d);});item.appendChild(sw);}
+    const scheduleBtn=document.createElement('button');scheduleBtn.type='button';scheduleBtn.className='small-btn';scheduleBtn.textContent=state.openScheduleStudentId===s.id?'Сховати графік':'🗓️ Графік';scheduleBtn.setAttribute('aria-expanded',String(state.openScheduleStudentId===s.id));scheduleBtn.onclick=()=>{state.openScheduleStudentId=state.openScheduleStudentId===s.id?null:s.id;renderStudents();};head.appendChild(scheduleBtn);
+    if(state.openScheduleStudentId===s.id){
+      const schedulePanel=document.createElement('div');schedulePanel.className='student-schedule-management-panel';item.appendChild(schedulePanel);
+      if(window.StudentScheduleFeature){
+        window.StudentScheduleFeature.mount({
+          container:schedulePanel,db,scheduleId:state.scheduleId,student:s,
+          lessons:state.lessons,students:state.students,confirmAction:confirmBox,
+          onChanged:async studentId=>{await loadV2();render();state.openScheduleStudentId=studentId;renderStudents();},
+          onOpenLesson:async lessonId=>{await loadV2();el.studentsModal.classList.add('hidden');openEditLesson(lessonId);}
+        });
+      }else schedulePanel.textContent='Редактор графіка недоступний.';
+    }
     el.studentsList.appendChild(item);
   });
   el.studentsList.scrollTop=scrollTop;
@@ -701,14 +713,6 @@ function openStudent(id){
     ? '<div class="student-debt-notice unpaid">⚠️ Заборгованість: <b>'+st.completedUnpaid+'</b> проведених уроків не оплачено.</div>'
     : '<div class="student-debt-notice clear">✓ Заборгованості за проведеними уроками немає.</div>';
   el.studentInfoStats.innerHTML=debtNotice+'<div class="stat-card"><b>'+st.completedCount+'</b><span>Проведено уроків</span></div><div class="stat-card"><b>'+st.completedUnpaid+'</b><span>Проведено, не оплачено</span></div><div class="stat-card"><b>'+st.paidNotCompleted+'</b><span>Оплачено, не проведено</span></div>';el.studentInfoLinkInput.value=personalLink(s.id);renderStudentCompleted(s.id);
-  if(window.StudentScheduleFeature){
-    window.StudentScheduleFeature.mount({
-      container:$('student-schedule-feature'),db,scheduleId:state.scheduleId,student:s,
-      lessons:state.lessons,students:state.students,confirmAction:confirmBox,
-      onChanged:async studentId=>{await loadV2();render();openStudent(studentId);},
-      onOpenLesson:async lessonId=>{await loadV2();el.studentInfoModal.classList.add('hidden');openEditLesson(lessonId);}
-    });
-  }
   el.studentInfoModal.classList.remove('hidden');
 }
 function renderStudentsPicker(){
